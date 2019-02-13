@@ -12,9 +12,6 @@ class Tree(Graph):
 
     def _id3_(self, data, currId, parentId):
 
-        print(data)
-        print(20*'-')
-
         node = Node(id=currId)
 
         # Check if all target values are equal
@@ -50,5 +47,4 @@ class Tree(Graph):
                 sub = data.loc[data[best_attr] == prop, data.columns != best_attr]
                 self.connectionProp.append({(node.id,self._next_id()) : prop})
                 self._id3_(sub, currId=self._next_id(), parentId=node.id)
-
         return self
