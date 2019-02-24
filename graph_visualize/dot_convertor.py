@@ -13,7 +13,7 @@ def make_connection(connect):
     conn = '{} -> {} [label="{}", fontsize=10]'.format(nodes[0], nodes[1], prop)
     return conn
 
-def export2dot(tree):
+def export2dot(name, tree):
     if isinstance(tree,Tree):
         dot_graph = 'digraph Tree { \n\tnode [shape=box, style="filled, rounded", color="black", fontname=helvetica] ; edge [fontname=helvetica];\n'
         graph_nodes, connections, ids = [], [], []
@@ -31,7 +31,7 @@ def export2dot(tree):
             dot_graph += make_connection(connection)
         dot_graph += '}'
 
-        with open("example.dot", "w") as output:
+        with open(name + ".dot", "w") as output:
             output.write(dot_graph)
             output.close()
 
