@@ -1,5 +1,6 @@
 from algorithms.learn_tree import *
 from pandas import DataFrame
+from numpy import nan
 
 class DecisionTree():
 
@@ -15,7 +16,7 @@ class DecisionTree():
             if attrType in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
                 self.attribute_types[attr] = 0
             elif isinstance(attrType, object) or (attr in as_categorial):
-                self.attrribute_properties[attr] = set(data[attr].unique())
+                self.attrribute_properties[attr] = set(filter(lambda x: x not in [None, nan], data[attr].unique()))
                 self.attribute_types[attr] = 1
             else:
                 raise Exception("Unknown attribute type")
@@ -35,4 +36,4 @@ class DecisionTree():
             self._setAttrributeProperties(data,as_categorial)
             self.data = data
             tree = Tree(data=data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
-            self.tree = tree._c45_(data,currId=0,parentId=-1)
+            self.tree = tree._c45_(self.data,currId=0,parentId=-1)
