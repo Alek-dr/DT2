@@ -69,7 +69,6 @@ def distrEntropy(data,attr,target):
     return (w*log(w) - v)/log(2)
 
 def _splitEntropy_(data, attr, thrsh, W):
-    #W = data['__W__'].sum()
     unknown = W - data.loc[data[attr].notnull()]['__W__'].sum()
     leftSubs = data.loc[data[attr] <= thrsh]
     rightSubs = data.loc[data[attr] > thrsh]

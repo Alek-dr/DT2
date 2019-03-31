@@ -1,6 +1,7 @@
 from algorithms.learn_tree import *
 from pandas import DataFrame
 from numpy import nan
+import pickle
 
 class DecisionTree():
 
@@ -37,3 +38,23 @@ class DecisionTree():
             self.data = data
             tree = Tree(data=data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
             self.tree = tree._c45_(self.data,currId=0,parentId=-1)
+            #self.tree._pruneSameChild_()
+
+    def predict(self, example):
+        if self.tree._initialized:
+            if isinstance(example, DataFrame):
+                self.tree.predict(example)
+
+    def save(self, name):
+        with open(name, 'wb') as f:
+            pickle.dump(self,f, protocol=pickle.HIGHEST_PROTOCOL)
+            f.close()
+
+    def load(self, name):
+        with open(name,'rb') as f:
+            dt = pickle.load(f)
+            f.close()
+        self.tree = dt.tree
+        self.data = dt.data
+        self.attribute_types = dt.attribute_types
+        self.attrribute_properties = dt.attrribute_properties
