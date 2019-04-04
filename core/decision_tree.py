@@ -38,7 +38,7 @@ class DecisionTree():
             self.data = data
             tree = Tree(data=data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
             self.tree = tree._c45_(self.data,currId=0,parentId=-1)
-            #self.tree._pruneSameChild_()
+            self.tree._pruneSameChild_()
 
     def predict(self, example):
         if self.tree._initialized:

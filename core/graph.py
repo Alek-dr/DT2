@@ -97,7 +97,7 @@ class Graph():
             node = self.getNode(id)
             self.nodes.remove(node)
         node = self.getNode(parentId)
-        wpc = node.stat['WeightsPerClass']
+        wpc = node.stat
         ind = np.argmax(wpc['weight'])
         lbl = wpc['label'][ind]
         node.attr = lbl

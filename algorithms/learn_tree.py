@@ -18,11 +18,13 @@ class Tree(Graph):
         Graph.__init__(self)
         self.target = target
         self.data = data
+        self.branchStat = {}
         self.data['__W__'] = [1 for _ in range(len(data))]
         self.attrributeProperties = attrProp
         self.attrributeTypes = attrTypes
         self.connectionProp = []
         self.nClasses = len(attrProp[target])
+        self.targetLbls = [lbl for lbl in attrProp[target]]
         self.minObj = 2
         self.fmt = 'U' + str(max([len(lbl) for lbl in attrProp[target]]))
 
@@ -63,6 +65,87 @@ class Tree(Graph):
                 sub = data.loc[data[best_attr] == prop, data.columns != best_attr]
                 self.connectionProp.append({(node.id, self._next_id()): prop})
                 self._id3_(sub, currId=self._next_id(), parentId=node.id)
+        return self
+
+    def _c45_(self, data, currId, parentId):
+
+        node = Node(id=currId)
+
+        # Check if all target values are equal
+        if len(data[self.target].unique()) == 1:
+            node.type = 'leaf'
+            node.attr = data.iloc[0][self.target]
+            node.stat = self._getStat_(data)
+            self.addNode(node, parentId)
+            return self
+        # If only target
+        elif len(data.columns) == 1:
+            node = self._leafNode_(node, data)
+            self.addNode(node, parentId)
+            return self
+        enough, mostFreq = self._enoughInstances_(data)
+        if not enough:
+            node.type = 'leaf'
+            node.attr = mostFreq
+            node.stat = self._getStat_(data)
+            self.addNode(node, parentId)
+            return self
+        else:
+            gainRatio, attrThrsh = {}, {}
+            for attr in data.columns:
+                if (attr != self.target) and (attr != '__W__'):
+                    if self.attrributeTypes[attr] == 1:
+                        # categorical attribute
+                        gainRatio[attr] = self._handleCategorial_(data, attr)
+                    else:
+                        # continous attribute
+                        gr, thrsh = self._handleNumerical_(data, attr)
+                        gainRatio[attr] = gr
+                        attrThrsh[attr] = thrsh
+
+            best_attr = max(gainRatio, key=gainRatio.get)
+
+            node.attr = best_attr
+            node.type = 'inner'
+            node.stat = self._getStat_(data)
+
+            if node.id == 0:
+                self.setRootNode(node)
+            else:
+                self.addNode(node, parentId=parentId)
+
+            N = data.loc[data[best_attr].notnull()]['__W__'].sum()
+            if self.attrributeTypes[best_attr] == 0:
+                thrsh = attrThrsh[best_attr]
+                thrsh = set_threshold(self.data[best_attr], thrsh)
+                lessOrEq = data.loc[data[best_attr] <= thrsh]
+
+                nextId = self._next_id()
+                branchStat = self._getStat_(lessOrEq)
+                self.branchStat[(node.id, nextId)] = branchStat
+
+                self.connectionProp.append({(node.id, self._next_id()): '<= {}'.format(thrsh)})
+                self._c45_(lessOrEq, currId=self._next_id(), parentId=node.id)
+
+                great = data.loc[data[best_attr] > thrsh]
+                nextId = self._next_id()
+                branchStat = self._getStat_(great)
+                self.branchStat[(node.id, nextId)] = branchStat
+
+                self.connectionProp.append({(node.id, self._next_id()): '> {}'.format(thrsh)})
+                self._c45_(great, currId=self._next_id(), parentId=node.id)
+            else:
+                for prop in self.attrributeProperties[best_attr]:
+                    sub = data.loc[data[best_attr] == prop, data.columns != best_attr]
+                    w = round(sub['__W__'].sum() / N, 3)
+                    unknown = data.loc[data[best_attr].isnull(), data.columns != best_attr].copy()
+                    unknown['__W__'] = [w for _ in range(unknown.shape[0])]
+                    sub = pd.concat([sub, unknown], sort=False)
+                    nextId = self._next_id()
+                    branchStat = self._getStat_(sub)
+                    self.branchStat[(node.id, nextId)] = branchStat
+                    self.connectionProp.append({(node.id, nextId): prop})
+                    self._c45_(sub, currId=nextId, parentId=node.id)
         return self
 
     def _handleCategorial_(self, data, attr):
@@ -138,10 +221,8 @@ class Tree(Graph):
                                                       'formats': (self.fmt, 'f8')})
         weightsPerClass['label'] = names
         weightsPerClass['weight'] = weights
-        # Total weight
-        W = data['__W__'].sum()
         del names, weights
-        return {'W': W, 'WeightsPerClass': weightsPerClass}
+        return weightsPerClass
 
     def _leafNode_(self, node, data):
         node.type = 'leaf'
@@ -157,6 +238,11 @@ class Tree(Graph):
                 if edge in conn:
                     self.connectionProp.remove(conn)
 
+    def _pruneBranchStat_(self, parent, chId):
+        for id in chId:
+            edge = (parent, id)
+            del self.branchStat[edge]
+
     def _mergeNodes_(self, parent, chId):
         allProp = []
         for id in chId:
@@ -167,74 +253,6 @@ class Tree(Graph):
         edge = (parent, chId[0])
         ind = [i for i in range(len(self.connectionProp)) if edge in self.connectionProp[i]][0]
         self.connectionProp[ind] = {edge: ';'.join(allProp)}
-
-    def _c45_(self, data, currId, parentId):
-
-        node = Node(id=currId)
-
-        # Check if all target values are equal
-        if len(data[self.target].unique()) == 1:
-            node.type = 'leaf'
-            node.attr = data.iloc[0][self.target]
-            node.stat = self._getStat_(data)
-            self.addNode(node, parentId)
-            return self
-        # If only target
-        elif len(data.columns) == 1:
-            node = self._leafNode_(node, data)
-            self.addNode(node, parentId)
-            return self
-        enough, mostFreq = self._enoughInstances_(data)
-        if not enough:
-            node.type = 'leaf'
-            node.attr = mostFreq
-            node.stat = self._getStat_(data)
-            self.addNode(node, parentId)
-            return self
-        else:
-            gainRatio, attrThrsh = {}, {}
-            for attr in data.columns:
-                if (attr != self.target) and (attr != '__W__'):
-                    if self.attrributeTypes[attr] == 1:
-                        # categorical attribute
-                        gainRatio[attr] = self._handleCategorial_(data, attr)
-                    else:
-                        # continous attribute
-                        gr, thrsh = self._handleNumerical_(data, attr)
-                        gainRatio[attr] = gr
-                        attrThrsh[attr] = thrsh
-
-            best_attr = max(gainRatio, key=gainRatio.get)
-
-            node.attr = best_attr
-            node.type = 'inner'
-            node.stat = self._getStat_(data)
-
-            if node.id == 0:
-                self.setRootNode(node)
-            else:
-                self.addNode(node, parentId=parentId)
-
-            N = data.loc[data[best_attr].notnull()]['__W__'].sum()
-            if self.attrributeTypes[best_attr] == 0:
-                thrsh = attrThrsh[best_attr]
-                thrsh = set_threshold(self.data[best_attr], thrsh)
-                lessOrEq = data.loc[data[best_attr] <= thrsh]
-                self.connectionProp.append({(node.id, self._next_id()): '<= {}'.format(thrsh)})
-                self._c45_(lessOrEq, currId=self._next_id(), parentId=node.id)
-                great = data.loc[data[best_attr] > thrsh]
-                self.connectionProp.append({(node.id, self._next_id()): '> {}'.format(thrsh)})
-                self._c45_(great, currId=self._next_id(), parentId=node.id)
-            else:
-                for prop in self.attrributeProperties[best_attr]:
-                    sub = data.loc[data[best_attr] == prop, data.columns != best_attr]
-                    w = round(sub['__W__'].sum() / N, 3)
-                    unknown = data.loc[data[best_attr].isnull(), data.columns != best_attr].copy()
-                    unknown['__W__'] = [w for _ in range(unknown.shape[0])]
-                    sub = pd.concat([sub, unknown], sort=False)
-                    self.connectionProp.append({(node.id, self._next_id()): prop})
-                    self._c45_(sub, currId=self._next_id(), parentId=node.id)
-        return self
 
     def _pruneSameChild_(self):
         groups = self.groupLeafByParent()
@@ -250,33 +268,73 @@ class Tree(Graph):
                             self._makeOneNode_(group, ind_leafs)
                             self._mergeNodes_(group, ind_leafs)
                             self._pruneConnect_(group, ind_leafs[1:])
+                            # TODO : merge stat
                 else:
                     # prune leafs
                     for eq in sameLbls:
                         chId = [childs[i] for i in eq]
                         self.prune(parent, chId)
                         self._pruneConnect_(parent, chId)
+                        self._pruneBranchStat_(parent, chId)
 
     def _getConnections_(self, id):
         return [conn for conn in self.connectionProp for edge in conn.keys() if edge[0] == id]
 
+    def _prob_(self, parentStat, branchStats):
+        W = parentStat['weight'].sum()
+        P = branchStats[0]
+        for stat in branchStats[1:]:
+            P['weight'] += stat['weight']
+        P['weight'] /= W
+        res = {}
+        for p in P:
+            res[p['label']] = round(p['weight'],3)
+        return res
+
     def _predict_(self, example, node):
         if node.type == 'leaf':
-            return node.attr
+            res = {}
+            for lbl in self.targetLbls:
+                res[lbl] = 0 if lbl != node.attr else 100
+            return res
         else:
             test = node.attr
             val = example[test].values[0]
             connections = self._getConnections_(node.id)
             nextNode = None
             if val is not None:
-                for connect in connections:
-                    for k, v in connect.items():
-                        if v == val:
-                            nextNode = self.getNode(k[1])
-                            break
+                if self.attrributeTypes[test] == 1:
+                    # handle categorial
+                    for connect in connections:
+                        for k, v in connect.items():
+                            if v == val:
+                                nextNode = self.getNode(k[1])
+                                break
+                else:
+                    # handle numerical
+                    for connect in connections:
+                        for k, v in connect.items():
+                            if '<=' in v:
+                                testVal = float(v[3:])
+                                if val <= testVal:
+                                    nextNode = self.getNode(k[1])
+                                    break
+                            else:
+                                testVal = float(v[2:])
+                                if val > testVal:
+                                    nextNode = self.getNode(k[1])
+                                    break
                 if nextNode is not None:
                     return self._predict_(example, nextNode)
                 else:
                     raise Exception('There no subtree for {}'.format(test))
             else:
-                pass
+                stats = []
+                for conn in connections:
+                    edge, val = None, None
+                    for k, v in conn.items():
+                        edge, val = k, v
+                    stat = self.branchStat[edge]
+                    stats.append(stat)
+                prob = self._prob_(node.stat,stats)
+                return prob

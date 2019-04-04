@@ -13,15 +13,17 @@ def train():
     dt.C45(data=tennis, target='Play')
 
     out_name = 'tennis_2'
-    export2dot(out_name, dt.tree)
+    export2dot(out_name, dt.tree, writeId=True)
 
     dt.save(out_name+'.pkl')
 
 def test_1():
     dt = DecisionTree()
     dt.load('tennis_2.pkl')
-    example = pd.DataFrame({'Outlook': 'Sunny','Temperature': 70, 'Humidity': None, 'Wind':'No'}, index=[0])
-    dt.tree._predict_(example, dt.tree.getNode(0))
+    # example = pd.DataFrame({'Outlook': 'Sunny','Temperature': 70, 'Humidity': None, 'Wind':'No'}, index=[0])
+    example = pd.DataFrame({'Outlook': 'Rain', 'Temperature': 70, 'Humidity': 73, 'Wind': None}, index=[0])
+    res = dt.tree._predict_(example, dt.tree.getNode(0))
+    print(res)
 
 def test_2():
     dt = DecisionTree()
@@ -40,5 +42,6 @@ def test_2():
     dt.tree._pruneSameChild_()
 
 if __name__=='__main__':
-    #train()
-    test_2()
+    # train()
+    test_1()
+    # test_2()
