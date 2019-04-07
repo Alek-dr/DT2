@@ -1,4 +1,5 @@
 from algorithms.learn_tree import *
+from core.pruning import errorBasedPruning
 from pandas import DataFrame, Series
 from numpy import nan
 import pickle
@@ -34,7 +35,7 @@ class DecisionTree():
             tree = Tree(data=data, target=target, attrProp=self.attrribute_properties)
             self.tree = tree._id3_(data,currId=0,parentId=-1)
 
-    def C45(self, data, target, as_categorial=()):
+    def C45(self, data, target, as_categorial=(), pruneLevel=0):
         if isinstance(data,DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
@@ -42,7 +43,17 @@ class DecisionTree():
             self.data = data.copy()
             tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
             self.tree = tree._c45_(self.data,currId=0,parentId=-1)
-            self.tree._pruneSameChild_()
+            if pruneLevel == 1:
+                errorBasedPruning(self.tree)
+            elif pruneLevel == 2:
+                errorBasedPruning(self.tree)
+                self.tree._pruneSameChild_()
+            elif pruneLevel == 3:
+                self.tree._pruneSameChild_()
+                errorBasedPruning(self.tree)
+                wasPruned = self.tree._pruneSameChild_()
+                while wasPruned:
+                    wasPruned = self.tree._pruneSameChild_()
             del self.tree.data
             del self.data
 
@@ -57,6 +68,8 @@ class DecisionTree():
                 q = 2 if q==1 else q
                 self.tree = tree._c45_(self.data, currId=0, parentId=-1, q=q)
                 self.tree._pruneSameChild_()
+                errorBasedPruning(self.tree)
+                self.tree._pruneSameChild_()
             del self.tree.data
             del self.data
 
@@ -68,13 +81,14 @@ class DecisionTree():
                 res = pd.DataFrame(columns=self.tree.targetLbls)
                 for _, ex in example.iterrows():
                     y = self.tree._predict_(ex,rootNode)
-                    y = pd.DataFrame(y).T
+                    # y = pd.DataFrame(y).T
                     res = res.append(y, ignore_index=True)
             elif isinstance(example, Series):
                 rootNode = self.tree.getNode(0)
                 res = pd.DataFrame(self.tree._predict_(example, rootNode), index=[0])
             if vector:
-                return res.idxmax(axis=1)
+                res = res.idxmax(axis=1)
+                return res
             else:
                 return res
 

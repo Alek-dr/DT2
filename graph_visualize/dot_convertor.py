@@ -1,13 +1,6 @@
 from algorithms.learn_tree import Tree
 
 
-# def make_node(node):
-#     if node.type == 'inner':
-#         label = '{}[label="Id = {}\nAttribute = {}", fillcolor="#ffffff"];\n'.format(node.id, node.id, node.attr)
-#     else:
-#         label = '{}[label="Id = {}\n{}", fillcolor="#ffffff"];\n'.format(node.id, node.id, node.attr)
-#     return label
-
 def make_node(node, writeId):
     if node.type == 'inner':
         if writeId:

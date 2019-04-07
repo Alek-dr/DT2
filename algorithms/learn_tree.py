@@ -1,6 +1,7 @@
 from core.graph import Graph, Node
+from core.pruning import errorBasedPruning
 from algorithms.criterions import *
-from numpy import round, unique, array, dtype
+from numpy import round, unique
 from utils.help_functions import groupSameElements
 from operator import itemgetter
 import numpy as np
@@ -34,12 +35,19 @@ class Tree(Graph):
         # Check if all target values are equal
         if len(data[self.target].unique()) == 1:
             node.type = 'leaf'
-            node.attr = data.iloc[0][self.target]
+            label = data.iloc[0][self.target]
+            if not isinstance(label, str):
+                if label.dtype in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
+                    label = int(label)
+            node.attr = label
             self.addNode(node, parentId)
         # If only target
         elif len(data.columns) == 1:
             node.type = 'leaf'
             most_freq = data[self.target].value_counts().idxmax()
+            if not isinstance(most_freq, str):
+                if most_freq.dtype in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
+                    most_freq = int(most_freq)
             node.attr = most_freq
             self.addNode(node, parentId)
         else:
@@ -82,7 +90,11 @@ class Tree(Graph):
         # Check if all target values are equal
         if len(data[self.target].unique()) == 1:
             node.type = 'leaf'
-            node.attr = data.iloc[0][self.target]
+            label = data.iloc[0][self.target]
+            if not isinstance(label, str):
+                if label.dtype in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
+                    label = int(label)
+            node.attr = label
             node.stat = self._getStat_(data)
             self.addNode(node, parentId)
             return self
@@ -227,6 +239,9 @@ class Tree(Graph):
     def _enoughInstances_(self, data):
         W = data['__W__'].sum()
         mostFreq = data[self.target].value_counts().idxmax()
+        if not isinstance(mostFreq, str):
+            if mostFreq.dtype in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
+                mostFreq = int(mostFreq)
         N = data.loc[data[self.target] == mostFreq]['__W__'].sum()
         if (W > 2 * self.minObj) & (W > N):
             return True, mostFreq
@@ -253,7 +268,11 @@ class Tree(Graph):
 
     def _leafNode_(self, node, data):
         node.type = 'leaf'
-        most_freq = data[self.target].value_counts().idxmax()
+        label = data[self.target].value_counts().idxmax()
+        if not isinstance(label, str):
+            if label.dtype in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
+                label = int(label)
+        most_freq = label
         node.attr = most_freq
         node.stat = self._getStat_(data)
         return node
@@ -264,6 +283,19 @@ class Tree(Graph):
             for conn in self.connectionProp:
                 if edge in conn:
                     self.connectionProp.remove(conn)
+
+    def _multipleConnect(self, parent, chId):
+        dst = (parent, chId[0])
+        for id in chId[1:]:
+            edge = (parent, id)
+            for conn in self.connectionProp:
+                if edge in conn:
+                    val = None
+                    for v in conn.values():
+                        val = v
+                    self.connectionProp.remove(conn)
+                    self.connectionProp.append({dst: val})
+                    break
 
     def _pruneBranchStat_(self, parent, chId):
         for id in chId:
@@ -288,22 +320,23 @@ class Tree(Graph):
         data.index = [edge]
 
     def _pruneSameChild_(self):
+        prune = False
         groups = self.groupLeafByParent()
         for parent, childs in groups.items():
             if len(childs) > 1:
+                allChilds = self.getChilds(parent)
                 labels = [self.getNode(id).attr for id in childs]
                 sameLbls = groupSameElements(labels)
-                if len(sameLbls) > 1:
+                if (len(sameLbls) > 1) or (len(allChilds)>len(childs)):
                     for leafs in sameLbls:
                         if len(leafs) > 1:
                             ind_leafs = groups[parent]
-                            # ind_leafs = groups[group]
                             ind_leafs = itemgetter(*leafs)(ind_leafs)
                             self._makeOneNode_(parent, ind_leafs)
-                            # self._mergeNodes_(parent, ind_leafs)
-                            self._pruneConnect_(parent, ind_leafs[1:])
+                            self._multipleConnect(parent, ind_leafs)
+                            # self._pruneConnect_(parent, ind_leafs[1:])
                             self._mergeBranchStat_(parent, ind_leafs)
-
+                            prune = True
                 else:
                     # prune leafs
                     for eq in sameLbls:
@@ -311,6 +344,8 @@ class Tree(Graph):
                         self.prune(parent, chId)
                         self._pruneConnect_(parent, chId)
                         self._pruneBranchStat_(parent, chId)
+                        prune = True
+        return prune
 
     def _getConnections_(self, id):
         return [conn for conn in self.connectionProp for edge in conn.keys() if edge[0] == id]
@@ -322,9 +357,9 @@ class Tree(Graph):
 
     def _predict_(self, example, node):
         if node.type == 'leaf':
-            res = pd.Series()
+            res = pd.DataFrame(columns=self.targetLbls)
             for lbl in self.targetLbls:
-                res[lbl] = float(0) if lbl != node.attr else float(1)
+                res[lbl] = [float(0) if lbl != node.attr else float(1)]
             return res
         else:
             test = node.attr
@@ -335,6 +370,8 @@ class Tree(Graph):
                 if self.attrributeTypes[test] == 1:
                     # handle categorial
                     for connect in connections:
+                        if nextNode is not None:
+                            break
                         for k, v in connect.items():
                             if v == val:
                                 nextNode = self.getNode(k[1])
@@ -342,6 +379,8 @@ class Tree(Graph):
                 else:
                     # handle numerical
                     for connect in connections:
+                        if nextNode is not None:
+                            break
                         for k, v in connect.items():
                             if '<=' in v:
                                 testVal = float(v[3:])
@@ -358,8 +397,10 @@ class Tree(Graph):
                 else:
                     edges = [edge for conn in connections for edge in conn.keys()]
                     prob = self._prob_(node.stat, edges)
+                    prob = pd.DataFrame(prob).T
                     return prob
             else:
                 edges = [edge for conn in connections for edge in conn.keys()]
                 prob = self._prob_(node.stat,edges)
+                prob = pd.DataFrame(prob).T
                 return prob
