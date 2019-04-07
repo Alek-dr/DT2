@@ -3,11 +3,19 @@ import pandas as pd
 
 SMALL = 1e-3
 
-def info(data, target, attr):
+def info(data, target, attr, q=2):
+    """
+    :param data: pandas DataFrame
+    :param target: target column name
+    :param attr: current attribute
+    :param q: optional parametr. If q = 1 entropy is ordinary Shannon entropy.
+    If q is real and n not equal 1, it becomes Tsallis entropy
+    :return: entropy
+    """
     data = data.loc[data[attr].notnull()]
     freq = data[target].value_counts().values
     v = freq / data.shape[0]
-    return round(-sum(v * log2(v)), 3)
+    return round((1/(q-1)) * -sum(v * log2(v)), 3)
 
 def splitInfo(data, target):
     freq = data[target].value_counts().values
@@ -33,20 +41,20 @@ def req_bits(row, N):
     vals = vals[nonzero(vals)]
     return -sum(vals * log2(vals)) * (n / N)
 
-def info_x(data, attr, target):
+def info_x(data, attr, target, q=2):
     data = data.loc[data[attr].notnull()]
     freq = pd.crosstab(data[attr], data[target], normalize=False)
     N = data.shape[0]
     info = freq.apply(lambda row: req_bits(row, N), axis=1)
-    return round(info.sum(), 3)
+    return round((1/(q-1)) * info.sum(), 3)
 
-def info_cont_x(data, attr, thrsh, target):
-    data = data.loc[data[attr].notnull()]
-    thrsh_sort = data[attr].apply(lambda x: x <= thrsh)
-    freq = pd.crosstab(thrsh_sort, data[target], normalize=False)
-    N = data.shape[0]
-    info = freq.apply(lambda row: req_bits(row, N), axis=1)
-    return round(info.sum(), 3)
+# def info_cont_x(data, attr, thrsh, target, q=2):
+#     data = data.loc[data[attr].notnull()]
+#     thrsh_sort = data[attr].apply(lambda x: x <= thrsh)
+#     freq = pd.crosstab(thrsh_sort, data[target], normalize=False)
+#     N = data.shape[0]
+#     info = freq.apply(lambda row: req_bits(row, N), axis=1)
+#     return round((1/(q-1)) * info.sum(), 3)
 
 # region C4.5 numerical attribute handle
 
@@ -61,12 +69,12 @@ def set_threshold(values, curr_thrsh):
             newThrsh = tempValue
     return newThrsh
 
-def distrEntropy(data,attr,target):
+def distrEntropy(data,attr,target,q=2):
     data = data.loc[data[attr].notnull()]
     freq = data.groupby(target)['__W__'].sum().values
     v = sum(freq*log(freq))
     w = data['__W__'].sum()
-    return (w*log(w) - v)/log(2)
+    return (w*log(w) - v)/(log(2)*(q-1))
 
 def _splitEntropy_(data, attr, thrsh, W):
     unknown = W - data.loc[data[attr].notnull()]['__W__'].sum()

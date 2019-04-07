@@ -1,4 +1,4 @@
-import numpy as np
+import pandas as pd
 
 class Node():
 
@@ -78,17 +78,16 @@ class Graph():
     def _makeOneNode_(self,parentId, nodesId):
         # merge to node 0
         nodes = [self.getNode(id) for id in nodesId]
-        WPC = nodes[0].stat['WeightsPerClass']
-        for node in nodes[1:]:
-            WPC['weight'] += node.stat['WeightsPerClass']['weight']
-        W = WPC['weight'].sum()
-        new_stat = {'W': W, 'WeightsPerClass': WPC}
-
+        stats = [node.stat for node in nodes]
+        res = pd.concat(stats, axis=1, sort=False)
+        res['W'] = res.sum(axis=1)
+        res.drop(columns = [name for name in res.columns[:-1]], axis=1, inplace=True)
+        res.columns = ['Weight']
         for node in nodes[1:]:
             edge = (parentId, node.id)
             self.edges.remove(edge)
             self.nodes.remove(node)
-        nodes[0].stat = new_stat
+        nodes[0].stat = res
 
     def prune(self, parentId, childs):
         for id in childs:
@@ -97,8 +96,5 @@ class Graph():
             node = self.getNode(id)
             self.nodes.remove(node)
         node = self.getNode(parentId)
-        wpc = node.stat
-        ind = np.argmax(wpc['weight'])
-        lbl = wpc['label'][ind]
-        node.attr = lbl
+        node.attr = node.stat.idxmax()
         node.type = 'leaf'

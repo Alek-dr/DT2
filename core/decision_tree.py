@@ -1,5 +1,5 @@
 from algorithms.learn_tree import *
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from numpy import nan
 import pickle
 
@@ -15,7 +15,11 @@ class DecisionTree():
         for attr in data:
             attrType = data[attr].dtype
             if attrType in ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']:
-                self.attribute_types[attr] = 0
+                if attr in as_categorial:
+                    self.attrribute_properties[attr] = set(filter(lambda x: x not in [None, nan], data[attr].unique()))
+                    self.attribute_types[attr] = 1
+                else:
+                    self.attribute_types[attr] = 0
             elif isinstance(attrType, object) or (attr in as_categorial):
                 self.attrribute_properties[attr] = set(filter(lambda x: x not in [None, nan], data[attr].unique()))
                 self.attribute_types[attr] = 1
@@ -35,15 +39,44 @@ class DecisionTree():
             if data.empty:
                 raise BaseException('Empty data')
             self._setAttrributeProperties(data,as_categorial)
-            self.data = data
-            tree = Tree(data=data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
+            self.data = data.copy()
+            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
             self.tree = tree._c45_(self.data,currId=0,parentId=-1)
             self.tree._pruneSameChild_()
+            del self.tree.data
+            del self.data
 
-    def predict(self, example):
+    def learn(self, data, target, as_categorial=(), criterion='Tsallis',q=2):
+        if isinstance(data,DataFrame):
+            if data.empty:
+                raise BaseException('Empty data')
+            self._setAttrributeProperties(data,as_categorial)
+            self.data = data.copy()
+            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
+            if criterion == 'Tsallis':
+                q = 2 if q==1 else q
+                self.tree = tree._c45_(self.data, currId=0, parentId=-1, q=q)
+                self.tree._pruneSameChild_()
+            del self.tree.data
+            del self.data
+
+    def predict(self, example, vector=True):
         if self.tree._initialized:
+            res = None
             if isinstance(example, DataFrame):
-                self.tree.predict(example)
+                rootNode = self.tree.getNode(0)
+                res = pd.DataFrame(columns=self.tree.targetLbls)
+                for _, ex in example.iterrows():
+                    y = self.tree._predict_(ex,rootNode)
+                    y = pd.DataFrame(y).T
+                    res = res.append(y, ignore_index=True)
+            elif isinstance(example, Series):
+                rootNode = self.tree.getNode(0)
+                res = pd.DataFrame(self.tree._predict_(example, rootNode), index=[0])
+            if vector:
+                return res.idxmax(axis=1)
+            else:
+                return res
 
     def save(self, name):
         with open(name, 'wb') as f:
@@ -55,6 +88,6 @@ class DecisionTree():
             dt = pickle.load(f)
             f.close()
         self.tree = dt.tree
-        self.data = dt.data
+        # self.data = dt.data
         self.attribute_types = dt.attribute_types
         self.attrribute_properties = dt.attrribute_properties
