@@ -20,7 +20,7 @@ class Tree(Graph):
         self.target = target
         self.data = data
         self.branchStat = pd.DataFrame(columns=[lbl for lbl in attrProp[target]])
-        self.data['__W__'] = [1 for _ in range(len(data))]
+        self.data['__W__'] = [1.0 for _ in range(len(data))]
         self.attrributeProperties = attrProp
         self.attrributeTypes = attrTypes
         self.connectionProp = []
@@ -83,7 +83,7 @@ class Tree(Graph):
         else:
             return True
 
-    def _c45_(self, data, currId, parentId, q=2):
+    def _c45_(self, data, currId, parentId, q=2, criterion='entropy'):
 
         node = Node(id=currId)
 
@@ -116,12 +116,20 @@ class Tree(Graph):
                 if (attr != self.target) and (attr != '__W__'):
                     if self.attrributeTypes[attr] == 1:
                         # categorical attribute
-                        gainRatio[attr] = self._handleCategorial_(data, attr, q=q)
+                        if (criterion == 'entropy') or (criterion == 'Tsallis'):
+                            gainRatio[attr] = self._handleCategorial_(data, attr, q=q)
+                        elif criterion == 'Gini':
+                            gainRatio[attr] = 1 - gini(data, self.target, attr)
                     else:
                         # continous attribute
-                        gr, thrsh = self._handleNumerical_(data, attr,q=q)
-                        gainRatio[attr] = gr
-                        attrThrsh[attr] = thrsh
+                        if (criterion == 'entropy') or (criterion == 'Tsallis'):
+                            gr, thrsh = self._handleNumerical_(data, attr, q=q)
+                            gainRatio[attr] = gr
+                            attrThrsh[attr] = thrsh
+                        elif criterion == 'Gini':
+                            g, thrsh = giniCont(data, self.target, attr)
+                            gainRatio[attr] = 1 - g
+                            attrThrsh[attr] = thrsh
 
             best_attr = max(gainRatio, key=gainRatio.get)
 
@@ -164,7 +172,8 @@ class Tree(Graph):
                 self.connectionProp.append({(node.id, self._next_id()): '> {}'.format(thrsh)})
                 self._c45_(great, currId=self._next_id(), parentId=node.id, q=q)
             else:
-                notEmpty = [not data.loc[data[best_attr] == prop].empty for prop in self.attrributeProperties[best_attr]]
+                notEmpty = [not data.loc[data[best_attr] == prop].empty for prop in
+                            self.attrributeProperties[best_attr]]
                 if sum(notEmpty) <= 1:
                     return self
                 for prop in self.attrributeProperties[best_attr]:
@@ -181,15 +190,15 @@ class Tree(Graph):
                     self._c45_(sub, currId=nextId, parentId=node.id, q=q)
         return self
 
-    def _handleCategorial_(self, data, attr,q):
-        initial_entropy = info(data, self.target, attr=attr,q=q)
+    def _handleCategorial_(self, data, attr, q):
+        initial_entropy = info(data, self.target, attr=attr, q=q)
         F = _getPartition_(data, attr)
         I = info_x(data, attr, self.target, q)
         gain = round(F * (initial_entropy - I), 3)
         splInfo = splitInfo(data, attr)
         return round(gain / splInfo, 3)
 
-    def _handleNumerical_(self, data, attr,q):
+    def _handleNumerical_(self, data, attr, q):
         if data.empty:
             return 0, None
         minSplit = 0.1 * (data['__W__'].sum() / self.nClasses)
@@ -204,7 +213,7 @@ class Tree(Graph):
 
         startEntr = distrEntropy(data, attr, self.target, q=q)
         vals = unique(data[attr].sort_values().values[:-1])
-        if len(vals)<=1:
+        if len(vals) <= 1:
             return 0, None
         thresholds = (vals[1:] - vals[0:-1]) / 2
         n, infoGain = 0, 0
@@ -248,7 +257,7 @@ class Tree(Graph):
         else:
             return False, mostFreq
 
-    def _addBranchStat_(self,data, conn):
+    def _addBranchStat_(self, data, conn):
         row = pd.DataFrame(columns=self.branchStat.columns, index=[conn])
         for col in self.branchStat:
             w = data.loc[data[self.target] == col]['__W__'].sum()
@@ -311,9 +320,9 @@ class Tree(Graph):
                     allProp.append(conn[edge])
 
     def _mergeBranchStat_(self, parent, chId):
-        edges = [(parent,id) for id in chId]
+        edges = [(parent, id) for id in chId]
         data = self.branchStat.loc[edges]
-        edge = (parent,chId[0])
+        edge = (parent, chId[0])
         merged = pd.DataFrame(data.sum(axis=0)).T
         data = data.append(merged)
         data.drop(edges, inplace=True)
@@ -327,7 +336,7 @@ class Tree(Graph):
                 allChilds = self.getChilds(parent)
                 labels = [self.getNode(id).attr for id in childs]
                 sameLbls = groupSameElements(labels)
-                if (len(sameLbls) > 1) or (len(allChilds)>len(childs)):
+                if (len(sameLbls) > 1) or (len(allChilds) > len(childs)):
                     for leafs in sameLbls:
                         if len(leafs) > 1:
                             ind_leafs = groups[parent]
@@ -401,6 +410,6 @@ class Tree(Graph):
                     return prob
             else:
                 edges = [edge for conn in connections for edge in conn.keys()]
-                prob = self._prob_(node.stat,edges)
+                prob = self._prob_(node.stat, edges)
                 prob = pd.DataFrame(prob).T
                 return prob

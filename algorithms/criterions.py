@@ -1,7 +1,9 @@
-from numpy import log2, log, sum, round, nonzero, append
+from numpy import log2, log, sum, round, nonzero, append, square, unique
 import pandas as pd
 
 SMALL = 1e-3
+
+# region Entropy
 
 def info(data, target, attr, q=2):
     """
@@ -48,13 +50,7 @@ def info_x(data, attr, target, q=2):
     info = freq.apply(lambda row: req_bits(row, N), axis=1)
     return round((1/(q-1)) * info.sum(), 3)
 
-# def info_cont_x(data, attr, thrsh, target, q=2):
-#     data = data.loc[data[attr].notnull()]
-#     thrsh_sort = data[attr].apply(lambda x: x <= thrsh)
-#     freq = pd.crosstab(thrsh_sort, data[target], normalize=False)
-#     N = data.shape[0]
-#     info = freq.apply(lambda row: req_bits(row, N), axis=1)
-#     return round((1/(q-1)) * info.sum(), 3)
+# endregion
 
 # region C4.5 numerical attribute handle
 
@@ -98,3 +94,48 @@ def gainRatio(data,attr,infoGain,thrsh):
     return round(infoGain/h,3)
 
 # endregion
+
+# region Gini
+
+def gini(data, target, attr):
+    """
+    :param data: pandas DataFrame
+    :param target: target column name
+    :param attr: current attribute
+    :return: Gini index
+    """
+    data = data.loc[data[target].notnull()]
+    freq = pd.DataFrame(data.groupby([attr, target])['__W__'].sum()).unstack().fillna(0)
+    W = data['__W__'].sum()
+    g = 0
+    for _, row in freq.iterrows():
+        w = row.sum()
+        val = 1 - square(row.values / w).sum()
+        g += (w/W)*val
+    return round(g,3)
+
+def giniCont(data, target, attr):
+    """
+    :param data: pandas DataFrame
+    :param target: target column name
+    :param attr: current attribute
+    :return: Gini index
+    """
+    data = data.loc[data[target].notnull()]
+    vals = unique(data[attr].sort_values().values[:-1])
+    if len(vals) <= 1:
+        return 0, None
+    thresholds = (vals[1:] - vals[0:-1]) / 2
+    thrshGini = {}
+    for v, dv in zip(vals, thresholds):
+        data['__thrsh__'] = data[attr].apply(lambda x: x >= v+dv)
+        g = gini(data,target,'__thrsh__')
+        thrshGini[v+dv] = g
+    bestSplit = min(thrshGini, key=thrshGini.get)
+    g = thrshGini[bestSplit]
+    data.drop(['__thrsh__'],axis=1,inplace=True)
+    return g, bestSplit
+
+# endregion
+
+

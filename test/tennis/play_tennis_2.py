@@ -49,9 +49,20 @@ def test_2():
     dt.tree.addNode(node,1)
     dt.tree._pruneSameChild_()
 
+def test_3():
+    tennis = pd.read_csv('../../datasets/PlayTennis_1.csv')
+    tennis.drop("Day", axis=1, inplace=True)
+
+    dt = DecisionTree()
+    dt.learn(tennis,'Play',criterion='Gini')
+    out_name = 'tennisGini'
+    export2dot(out_name, dt.tree, writeId=True, write=True)
+    dt.save(out_name + '.pkl')
+
+
 if __name__=='__main__':
     # train()
-    test_1()
+    test_3()
     # test_2()
     # alpha = 0.25
     # z = stats.norm.ppf(1 - alpha/2)

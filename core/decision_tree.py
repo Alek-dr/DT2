@@ -57,7 +57,7 @@ class DecisionTree():
             del self.tree.data
             del self.data
 
-    def learn(self, data, target, as_categorial=(), criterion='Tsallis',q=2):
+    def learn(self, data, target, as_categorial=(), criterion='Gini', pruneLevel=0 ,q=2):
         if isinstance(data,DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
@@ -66,10 +66,18 @@ class DecisionTree():
             tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
             if criterion == 'Tsallis':
                 q = 2 if q==1 else q
-                self.tree = tree._c45_(self.data, currId=0, parentId=-1, q=q)
-                self.tree._pruneSameChild_()
+            self.tree = tree._c45_(self.data, currId=0, parentId=-1, q=q, criterion=criterion)
+            if pruneLevel == 1:
+                errorBasedPruning(self.tree)
+            elif pruneLevel == 2:
                 errorBasedPruning(self.tree)
                 self.tree._pruneSameChild_()
+            elif pruneLevel == 3:
+                self.tree._pruneSameChild_()
+                errorBasedPruning(self.tree)
+                wasPruned = self.tree._pruneSameChild_()
+                while wasPruned:
+                    wasPruned = self.tree._pruneSameChild_()
             del self.tree.data
             del self.data
 
@@ -102,6 +110,5 @@ class DecisionTree():
             dt = pickle.load(f)
             f.close()
         self.tree = dt.tree
-        # self.data = dt.data
         self.attribute_types = dt.attribute_types
         self.attrribute_properties = dt.attrribute_properties
