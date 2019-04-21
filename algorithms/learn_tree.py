@@ -120,6 +120,8 @@ class Tree(Graph):
                             gainRatio[attr] = self._handleCategorial_(data, attr, q=q)
                         elif criterion == 'Gini':
                             gainRatio[attr] = 1 - gini(data, self.target, attr)
+                        elif criterion == 'D':
+                            gainRatio[attr] = D(data,self.target,attr)
                     else:
                         # continous attribute
                         if (criterion == 'entropy') or (criterion == 'Tsallis'):
@@ -129,6 +131,10 @@ class Tree(Graph):
                         elif criterion == 'Gini':
                             g, thrsh = giniCont(data, self.target, attr)
                             gainRatio[attr] = 1 - g
+                            attrThrsh[attr] = thrsh
+                        elif criterion == 'D':
+                            d, thrsh = D_cont(data, self.target, attr)
+                            gainRatio[attr] = d
                             attrThrsh[attr] = thrsh
 
             best_attr = max(gainRatio, key=gainRatio.get)

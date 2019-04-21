@@ -3,6 +3,7 @@ import pandas as pd
 
 SMALL = 1e-3
 
+
 # region Entropy
 
 def info(data, target, attr, q=2):
@@ -17,15 +18,17 @@ def info(data, target, attr, q=2):
     data = data.loc[data[attr].notnull()]
     freq = data[target].value_counts().values
     v = freq / data.shape[0]
-    return round((1/(q-1)) * -sum(v * log2(v)), 3)
+    return round((1 / (q - 1)) * -sum(v * log2(v)), 3)
+
 
 def splitInfo(data, target):
     freq = data[target].value_counts().values
     miss = data.loc[data[target].isnull()].shape[0]
     if miss > 0:
-        freq = append(freq,[miss],axis=0)
+        freq = append(freq, [miss], axis=0)
     v = freq / data.shape[0]
     return round(-sum(v * log2(v)), 3)
+
 
 def splitInfoCont(data, target, thrsh):
     data = data.loc[data[target].notnull()]
@@ -37,18 +40,21 @@ def splitInfoCont(data, target, thrsh):
     v = freq / data.shape[0]
     return round(-sum(v * log2(v)), 3)
 
+
 def req_bits(row, N):
     n = row.sum()
     vals = row.values / n
     vals = vals[nonzero(vals)]
     return -sum(vals * log2(vals)) * (n / N)
 
+
 def info_x(data, attr, target, q=2):
     data = data.loc[data[attr].notnull()]
     freq = pd.crosstab(data[attr], data[target], normalize=False)
     N = data.shape[0]
     info = freq.apply(lambda row: req_bits(row, N), axis=1)
-    return round((1/(q-1)) * info.sum(), 3)
+    return round((1 / (q - 1)) * info.sum(), 3)
+
 
 # endregion
 
@@ -65,12 +71,14 @@ def set_threshold(values, curr_thrsh):
             newThrsh = tempValue
     return newThrsh
 
-def distrEntropy(data,attr,target,q=2):
+
+def distrEntropy(data, attr, target, q=2):
     data = data.loc[data[attr].notnull()]
     freq = data.groupby(target)['__W__'].sum().values
-    v = sum(freq*log(freq))
+    v = sum(freq * log(freq))
     w = data['__W__'].sum()
-    return (w*log(w) - v)/(log(2)*(q-1))
+    return (w * log(w) - v) / (log(2) * (q - 1))
+
 
 def _splitEntropy_(data, attr, thrsh, W):
     unknown = W - data.loc[data[attr].notnull()]['__W__'].sum()
@@ -78,20 +86,22 @@ def _splitEntropy_(data, attr, thrsh, W):
     rightSubs = data.loc[data[attr] > thrsh]
     w1 = leftSubs['__W__'].sum()
     w2 = rightSubs['__W__'].sum()
-    h = - w1*log(w1) - w2*log(w2)
+    h = - w1 * log(w1) - w2 * log(w2)
     if unknown > 0:
-        h -= unknown*log(unknown)
-    h += W*log(W)
-    return round(h/log(2),3)
+        h -= unknown * log(unknown)
+    h += W * log(W)
+    return round(h / log(2), 3)
 
-def gainRatio(data,attr,infoGain,thrsh):
+
+def gainRatio(data, attr, infoGain, thrsh):
     W = data['__W__'].sum()
     h = _splitEntropy_(data, attr, thrsh, W)
     if 0 <= h <= SMALL:
         return 0
     else:
         h /= W
-    return round(infoGain/h,3)
+    return round(infoGain / h, 3)
+
 
 # endregion
 
@@ -111,8 +121,9 @@ def gini(data, target, attr):
     for _, row in freq.iterrows():
         w = row.sum()
         val = 1 - square(row.values / w).sum()
-        g += (w/W)*val
-    return round(g,3)
+        g += (w / W) * val
+    return round(g, 3)
+
 
 def giniCont(data, target, attr):
     """
@@ -128,14 +139,48 @@ def giniCont(data, target, attr):
     thresholds = (vals[1:] - vals[0:-1]) / 2
     thrshGini = {}
     for v, dv in zip(vals, thresholds):
-        data['__thrsh__'] = data[attr].apply(lambda x: x >= v+dv)
-        g = gini(data,target,'__thrsh__')
-        thrshGini[v+dv] = g
+        data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
+        g = gini(data, target, '__thrsh__')
+        thrshGini[v + dv] = g
     bestSplit = min(thrshGini, key=thrshGini.get)
     g = thrshGini[bestSplit]
-    data.drop(['__thrsh__'],axis=1,inplace=True)
+    data.drop(['__thrsh__'], axis=1, inplace=True)
     return g, bestSplit
+
 
 # endregion
 
+# region Donskoy
 
+def D(data, target, attr):
+    T = data[target].unique()
+    freq = pd.crosstab(data[target], data[attr], normalize=False)
+    columns = freq.columns.values
+    D_value = 0
+    for i, col in enumerate(columns[:-1], 1):
+        f = freq[col]
+        for t in T:
+            k = f[t]
+            ind = freq.index.isin([t])
+            vals = freq[~ind][columns[i:]].values.ravel()
+            D_value += sum(k * vals)
+    return D_value
+
+def D_cont(data, target, attr):
+    data = data.loc[data[target].notnull()]
+    vals = unique(data[attr].sort_values().values[:-1])
+    if len(vals) <= 1:
+        return 0, None
+    thresholds = (vals[1:] - vals[0:-1]) / 2
+    thrshDonsky = {}
+    for v, dv in zip(vals, thresholds):
+        data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
+        d = D(data, target, '__thrsh__')
+        thrshDonsky[v + dv] = d
+    bestSplit = min(thrshDonsky, key=thrshDonsky.get)
+    d = thrshDonsky[bestSplit]
+    data.drop(['__thrsh__'], axis=1, inplace=True)
+    return d, bestSplit
+
+
+# endregion
