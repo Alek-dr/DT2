@@ -26,7 +26,6 @@ def export2dot(name, tree, writeId=False, write=False):
     if isinstance(tree, Tree):
         dot_graph = 'digraph Tree { \n\tnode [shape=box, style="filled, rounded", color="black", fontname=helvetica] ; edge [fontname=helvetica];\n'
         graph_nodes, connections, ids = [], [], []
-        # def get_connect(nodes) : return str(nodes[0]) + ' -> ' + str(nodes[1]) + [style=bold,label="100 times"]; ';\n'
         for connection in tree.connectionProp:
             nodes = tuple(connection.keys())[0]
             node = tree.getNode(nodes[0])

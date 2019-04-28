@@ -119,7 +119,7 @@ class Tree(Graph):
                         if (criterion == 'entropy') or (criterion == 'Tsallis'):
                             gainRatio[attr] = self._handleCategorial_(data, attr, q=q)
                         elif criterion == 'Gini':
-                            gainRatio[attr] = 1 - gini(data, self.target, attr)
+                            gainRatio[attr] = round(giniAttr(data,self.target) - gini(data, self.target, attr),3)
                         elif criterion == 'D':
                             gainRatio[attr] = D(data,self.target,attr)
                     else:
@@ -130,7 +130,7 @@ class Tree(Graph):
                             attrThrsh[attr] = thrsh
                         elif criterion == 'Gini':
                             g, thrsh = giniCont(data, self.target, attr)
-                            gainRatio[attr] = 1 - g
+                            gainRatio[attr] = round(giniAttr(data,self.target) - g,3)
                             attrThrsh[attr] = thrsh
                         elif criterion == 'D':
                             d, thrsh = D_cont(data, self.target, attr)
@@ -144,7 +144,6 @@ class Tree(Graph):
             node.stat = self._getStat_(data)
 
             if node.id == 0:
-                # self.setRootNode(node)
                 if not self._usefullAttribute_(gainRatio):
                     node.type = 'leaf'
                     node.attr = mostFreq

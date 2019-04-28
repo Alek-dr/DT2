@@ -50,14 +50,14 @@ def test_2():
     dt.tree._pruneSameChild_()
 
 def test_3():
-    tennis = pd.read_csv('../../datasets/PlayTennis_1.csv')
+    tennis = pd.read_csv('../../datasets/PlayTennis_2.csv')
     tennis.drop("Day", axis=1, inplace=True)
 
     dt = DecisionTree()
-    dt.learn(tennis,'Play',criterion='Gini')
-    out_name = 'tennisGini'
-    export2dot(out_name, dt.tree, writeId=True, write=True)
-    dt.save(out_name + '.pkl')
+    dt.learn(tennis,'Play',criterion='D')
+    out_name = 'tennisD'
+    # export2dot(out_name, dt.tree, writeId=True, write=False)
+    # dt.save(out_name + '.pkl')
 
 
 if __name__=='__main__':

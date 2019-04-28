@@ -107,6 +107,14 @@ def gainRatio(data, attr, infoGain, thrsh):
 
 # region Gini
 
+def giniAttr(data, attr):
+    data = data.loc[data[attr].notnull()]
+    freq = pd.DataFrame(data.groupby([attr])['__W__'].sum()).unstack().fillna(0)
+    W = data['__W__'].sum()
+    g = 1 - square(freq.values / W).sum()
+    return round(g,3)
+
+
 def gini(data, target, attr):
     """
     :param data: pandas DataFrame
@@ -154,7 +162,7 @@ def giniCont(data, target, attr):
 
 def D(data, target, attr):
     T = data[target].unique()
-    freq = pd.crosstab(data[target], data[attr], normalize=False)
+    freq = pd.DataFrame(data.groupby([target, attr])['__W__'].sum()).unstack().fillna(0)
     columns = freq.columns.values
     D_value = 0
     for i, col in enumerate(columns[:-1], 1):
