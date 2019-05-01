@@ -15,7 +15,7 @@ def _getPartition_(data, attr):
 
 class Tree(Graph):
 
-    def __init__(self, data, target, attrProp, attrTypes):
+    def __init__(self, data, target, attrProp, attrTypes, params=None):
         Graph.__init__(self)
         self.target = target
         self.data = data
@@ -27,6 +27,10 @@ class Tree(Graph):
         self.nClasses = len(attrProp[target])
         self.targetLbls = [lbl for lbl in attrProp[target]]
         self.minObj = 2
+        if params is None:
+            self.params = {'criterion':'entropy'}
+        else:
+            self.params = params
 
     def _id3_(self, data, currId, parentId):
 
@@ -83,7 +87,7 @@ class Tree(Graph):
         else:
             return True
 
-    def _c45_(self, data, currId, parentId, q=2, criterion='entropy'):
+    def _c45_(self, data, currId, parentId):
 
         node = Node(id=currId)
 
@@ -116,25 +120,31 @@ class Tree(Graph):
                 if (attr != self.target) and (attr != '__W__'):
                     if self.attrributeTypes[attr] == 1:
                         # categorical attribute
-                        if (criterion == 'entropy') or (criterion == 'Tsallis'):
-                            gainRatio[attr] = self._handleCategorial_(data, attr, q=q)
-                        elif criterion == 'Gini':
-                            gainRatio[attr] = round(giniAttr(data,self.target) - gini(data, self.target, attr),3)
-                        elif criterion == 'D':
+                        if self.params['criterion'] == 'entropy':
+                            gainRatio[attr] = self._handleCategorial_(data, attr)
+                        elif self.params['criterion'] == 'Gini':
+                            gainRatio[attr] = gini(data, self.target, attr)
+                        elif self.params['criterion'] == 'D':
                             gainRatio[attr] = D(data,self.target,attr)
+                        elif self.params['criterion'] == 'Tsallis':
+                            gainRatio[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
                     else:
                         # continous attribute
-                        if (criterion == 'entropy') or (criterion == 'Tsallis'):
-                            gr, thrsh = self._handleNumerical_(data, attr, q=q)
+                        if self.params['criterion'] == 'entropy':
+                            gr, thrsh = self._handleNumerical_(data, attr)
                             gainRatio[attr] = gr
                             attrThrsh[attr] = thrsh
-                        elif criterion == 'Gini':
+                        elif self.params['criterion'] == 'Gini':
                             g, thrsh = giniCont(data, self.target, attr)
-                            gainRatio[attr] = round(giniAttr(data,self.target) - g,3)
+                            gainRatio[attr] = g
                             attrThrsh[attr] = thrsh
-                        elif criterion == 'D':
+                        elif self.params['criterion'] == 'D':
                             d, thrsh = D_cont(data, self.target, attr)
                             gainRatio[attr] = d
+                            attrThrsh[attr] = thrsh
+                        elif self.params['criterion'] == 'Tsallis':
+                            t, thrsh = tsallisCont(data, self.target, attr, self.params['alpha'])
+                            gainRatio[attr] = t
                             attrThrsh[attr] = thrsh
 
             best_attr = max(gainRatio, key=gainRatio.get)
@@ -171,11 +181,11 @@ class Tree(Graph):
                 nextId = self._next_id()
                 self._addBranchStat_(lessOrEq, (node.id, nextId))
                 self.connectionProp.append({(node.id, self._next_id()): '<= {}'.format(thrsh)})
-                self._c45_(lessOrEq, currId=self._next_id(), parentId=node.id, q=q)
+                self._c45_(lessOrEq, currId=self._next_id(), parentId=node.id)
                 nextId = self._next_id()
                 self._addBranchStat_(great, (node.id, nextId))
                 self.connectionProp.append({(node.id, self._next_id()): '> {}'.format(thrsh)})
-                self._c45_(great, currId=self._next_id(), parentId=node.id, q=q)
+                self._c45_(great, currId=self._next_id(), parentId=node.id)
             else:
                 notEmpty = [not data.loc[data[best_attr] == prop].empty for prop in
                             self.attrributeProperties[best_attr]]
@@ -192,18 +202,18 @@ class Tree(Graph):
                     nextId = self._next_id()
                     self._addBranchStat_(sub, (node.id, nextId))
                     self.connectionProp.append({(node.id, nextId): prop})
-                    self._c45_(sub, currId=nextId, parentId=node.id, q=q)
+                    self._c45_(sub, currId=nextId, parentId=node.id)
         return self
 
-    def _handleCategorial_(self, data, attr, q):
-        initial_entropy = info(data, self.target, attr=attr, q=q)
+    def _handleCategorial_(self, data, attr):
+        initial_entropy = info(data, self.target, attr=attr)
         F = _getPartition_(data, attr)
-        I = info_x(data, attr, self.target, q)
+        I = info_x(data, attr, self.target)
         gain = round(F * (initial_entropy - I), 3)
         splInfo = splitInfo(data, attr)
         return round(gain / splInfo, 3)
 
-    def _handleNumerical_(self, data, attr, q):
+    def _handleNumerical_(self, data, attr):
         if data.empty:
             return 0, None
         minSplit = 0.1 * (data['__W__'].sum() / self.nClasses)
@@ -216,7 +226,7 @@ class Tree(Graph):
         if W_attr <= 2 * minSplit:
             return 0, None
 
-        startEntr = distrEntropy(data, attr, self.target, q=q)
+        startEntr = distrEntropy(data, attr, self.target)
         vals = unique(data[attr].sort_values().values[:-1])
         if len(vals) <= 1:
             return 0, None

@@ -1,4 +1,4 @@
-from numpy import log2, log, sum, round, nonzero, append, square, unique
+from numpy import log2, log, sum, round, nonzero, append, square, unique, power
 import pandas as pd
 
 SMALL = 1e-3
@@ -6,19 +6,17 @@ SMALL = 1e-3
 
 # region Entropy
 
-def info(data, target, attr, q=2):
+def info(data, target, attr):
     """
     :param data: pandas DataFrame
     :param target: target column name
     :param attr: current attribute
-    :param q: optional parametr. If q = 1 entropy is ordinary Shannon entropy.
-    If q is real and n not equal 1, it becomes Tsallis entropy
     :return: entropy
     """
     data = data.loc[data[attr].notnull()]
     freq = data[target].value_counts().values
-    v = freq / data.shape[0]
-    return round((1 / (q - 1)) * -sum(v * log2(v)), 3)
+    p = freq / data.shape[0]
+    return round(-sum(p * log2(p)), 3)
 
 
 def splitInfo(data, target):
@@ -26,8 +24,8 @@ def splitInfo(data, target):
     miss = data.loc[data[target].isnull()].shape[0]
     if miss > 0:
         freq = append(freq, [miss], axis=0)
-    v = freq / data.shape[0]
-    return round(-sum(v * log2(v)), 3)
+    p = freq / data.shape[0]
+    return round(-sum(p * log2(p)), 3)
 
 
 def splitInfoCont(data, target, thrsh):
@@ -37,8 +35,8 @@ def splitInfoCont(data, target, thrsh):
     miss = data.loc[data[target].isnull()].shape[0]
     if miss > 0:
         freq = append(freq, [miss], axis=0)
-    v = freq / data.shape[0]
-    return round(-sum(v * log2(v)), 3)
+    p = freq / data.shape[0]
+    return round(-sum(p * log2(p)), 3)
 
 
 def req_bits(row, N):
@@ -48,13 +46,57 @@ def req_bits(row, N):
     return -sum(vals * log2(vals)) * (n / N)
 
 
-def info_x(data, attr, target, q=2):
+def info_x(data, attr, target):
     data = data.loc[data[attr].notnull()]
     freq = pd.crosstab(data[attr], data[target], normalize=False)
     N = data.shape[0]
     info = freq.apply(lambda row: req_bits(row, N), axis=1)
-    return round((1 / (q - 1)) * info.sum(), 3)
+    return round(info.sum(), 3)
 
+
+# endregion
+
+# region Tsallis
+
+def tsallis(data, target, attr, alpha):
+    H = tsalis_x(data, target, alpha)
+    freq = pd.DataFrame(data.groupby([attr, target])['__W__'].sum()).unstack().fillna(0)
+    N = data['__W__'].sum()
+    info = freq.apply(lambda row: req_info_t(row, N, alpha), axis=1)
+    return round(H - info.sum(), 3)
+
+
+def req_info_t(row, N, alpha):
+    n = row.sum()
+    p = row.values / n
+    p = p[nonzero(p)]
+    p = power(p, alpha).sum()
+    return round((1 * (alpha - 1)) * (1 - p) * (n / N), 3)
+
+
+def tsalis_x(data, target, alpha):
+    data = data.loc[data[target].notnull()]
+    freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
+    W = data['__W__'].sum()
+    p = power(freq / W, alpha).sum()
+    return round((1 * (alpha - 1)) * (1 - p), 3)
+
+
+def tsallisCont(data, target, attr, alpha):
+    data = data.loc[data[target].notnull()]
+    vals = unique(data[attr].sort_values().values[:-1])
+    if len(vals) <= 1:
+        return 0, None
+    thresholds = (vals[1:] - vals[0:-1]) / 2
+    thrshTsall = {}
+    for v, dv in zip(vals, thresholds):
+        data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
+        d = tsallis(data, target, '__thrsh__', alpha)
+        thrshTsall[v + dv] = d
+    bestSplit = max(thrshTsall, key=thrshTsall.get)
+    d = thrshTsall[bestSplit]
+    data.drop(['__thrsh__'], axis=1, inplace=True)
+    return d, bestSplit
 
 # endregion
 
@@ -107,12 +149,20 @@ def gainRatio(data, attr, infoGain, thrsh):
 
 # region Gini
 
-def giniAttr(data, attr):
+def gini_x(data, attr):
     data = data.loc[data[attr].notnull()]
     freq = pd.DataFrame(data.groupby([attr])['__W__'].sum()).unstack().fillna(0)
     W = data['__W__'].sum()
     g = 1 - square(freq.values / W).sum()
-    return round(g,3)
+    return round(g, 3)
+
+
+def req_info_g(row, N):
+    n = row.sum()
+    p = row.values / n
+    p = p[nonzero(p)]
+    p = 1 - square(p).sum()
+    return round(p * (n / N), 3)
 
 
 def gini(data, target, attr):
@@ -122,15 +172,11 @@ def gini(data, target, attr):
     :param attr: current attribute
     :return: Gini index
     """
-    data = data.loc[data[target].notnull()]
+    H = gini_x(data, target)
     freq = pd.DataFrame(data.groupby([attr, target])['__W__'].sum()).unstack().fillna(0)
-    W = data['__W__'].sum()
-    g = 0
-    for _, row in freq.iterrows():
-        w = row.sum()
-        val = 1 - square(row.values / w).sum()
-        g += (w / W) * val
-    return round(g, 3)
+    N = data['__W__'].sum()
+    info = freq.apply(lambda row: req_info_g(row, N), axis=1)
+    return round(H - info.sum(), 3)
 
 
 def giniCont(data, target, attr):
@@ -150,7 +196,7 @@ def giniCont(data, target, attr):
         data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
         g = gini(data, target, '__thrsh__')
         thrshGini[v + dv] = g
-    bestSplit = min(thrshGini, key=thrshGini.get)
+    bestSplit = max(thrshGini, key=thrshGini.get)
     g = thrshGini[bestSplit]
     data.drop(['__thrsh__'], axis=1, inplace=True)
     return g, bestSplit
@@ -174,6 +220,7 @@ def D(data, target, attr):
             D_value += sum(k * vals)
     return D_value
 
+
 def D_cont(data, target, attr):
     data = data.loc[data[target].notnull()]
     vals = unique(data[attr].sort_values().values[:-1])
@@ -185,10 +232,9 @@ def D_cont(data, target, attr):
         data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
         d = D(data, target, '__thrsh__')
         thrshDonsky[v + dv] = d
-    bestSplit = min(thrshDonsky, key=thrshDonsky.get)
+    bestSplit = max(thrshDonsky, key=thrshDonsky.get)
     d = thrshDonsky[bestSplit]
     data.drop(['__thrsh__'], axis=1, inplace=True)
     return d, bestSplit
-
 
 # endregion

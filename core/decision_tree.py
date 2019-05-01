@@ -57,16 +57,18 @@ class DecisionTree():
             del self.tree.data
             del self.data
 
-    def learn(self, data, target, as_categorial=(), criterion='Gini', pruneLevel=0 ,q=2):
+    def learn(self, data, target, as_categorial=(), pruneLevel=0, params=None):
         if isinstance(data,DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
+            if params['criterion'] == 'Tsallis' or params['criterion'] == 'Renyi':
+                if 'alpha' in params:
+                    if params['alpha'] == 1:
+                        raise Exception("alpha = 1 is unacceptable value for Tsallis and Renyi entropy")
             self._setAttrributeProperties(data,as_categorial)
             self.data = data.copy()
-            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
-            if criterion == 'Tsallis':
-                q = 2 if q==1 else q
-            self.tree = tree._c45_(self.data, currId=0, parentId=-1, q=q, criterion=criterion)
+            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types,params=params)
+            self.tree = tree._c45_(self.data, currId=0, parentId=-1)
             if pruneLevel == 1:
                 errorBasedPruning(self.tree)
             elif pruneLevel == 2:
@@ -89,7 +91,6 @@ class DecisionTree():
                 res = pd.DataFrame(columns=self.tree.targetLbls)
                 for _, ex in example.iterrows():
                     y = self.tree._predict_(ex,rootNode)
-                    # y = pd.DataFrame(y).T
                     res = res.append(y, ignore_index=True)
             elif isinstance(example, Series):
                 rootNode = self.tree.getNode(0)

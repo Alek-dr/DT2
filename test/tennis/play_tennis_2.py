@@ -54,8 +54,13 @@ def test_3():
     tennis.drop("Day", axis=1, inplace=True)
 
     dt = DecisionTree()
-    dt.learn(tennis,'Play',criterion='D')
-    out_name = 'tennisD'
+    params = {
+        'criterion':'Gini',
+        'alpha':2
+    }
+    dt.learn(tennis,'Play',params=params)
+
+    # out_name = 'tennisD'
     # export2dot(out_name, dt.tree, writeId=True, write=False)
     # dt.save(out_name + '.pkl')
 
