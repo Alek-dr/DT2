@@ -128,6 +128,8 @@ class Tree(Graph):
                             gainRatio[attr] = D(data,self.target,attr)
                         elif self.params['criterion'] == 'Tsallis':
                             gainRatio[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
+                        elif self.params['criterion'] == 'Renyi':
+                            gainRatio[attr] = renyi(data, self.target, attr, alpha=self.params['alpha'])
                     else:
                         # continous attribute
                         if self.params['criterion'] == 'entropy':
@@ -145,6 +147,10 @@ class Tree(Graph):
                         elif self.params['criterion'] == 'Tsallis':
                             t, thrsh = tsallisCont(data, self.target, attr, self.params['alpha'])
                             gainRatio[attr] = t
+                            attrThrsh[attr] = thrsh
+                        elif self.params['criterion'] == 'Renyi':
+                            r, thrsh = renyiCont(data, self.target, attr, self.params['alpha'])
+                            gainRatio[attr] = r
                             attrThrsh[attr] = thrsh
 
             best_attr = max(gainRatio, key=gainRatio.get)

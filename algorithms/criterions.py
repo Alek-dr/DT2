@@ -71,7 +71,7 @@ def req_info_t(row, N, alpha):
     p = row.values / n
     p = p[nonzero(p)]
     p = power(p, alpha).sum()
-    return round((1 * (alpha - 1)) * (1 - p) * (n / N), 3)
+    return round(((1 / (alpha - 1)) * (1 - p)) * (n / N), 3)
 
 
 def tsalis_x(data, target, alpha):
@@ -79,7 +79,7 @@ def tsalis_x(data, target, alpha):
     freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
     W = data['__W__'].sum()
     p = power(freq / W, alpha).sum()
-    return round((1 * (alpha - 1)) * (1 - p), 3)
+    return round((1 / (alpha - 1)) * (1 - p), 3)
 
 
 def tsallisCont(data, target, attr, alpha):
@@ -95,6 +95,50 @@ def tsallisCont(data, target, attr, alpha):
         thrshTsall[v + dv] = d
     bestSplit = max(thrshTsall, key=thrshTsall.get)
     d = thrshTsall[bestSplit]
+    data.drop(['__thrsh__'], axis=1, inplace=True)
+    return d, bestSplit
+
+# endregion
+
+# region Renyi
+
+def renyi(data, target, attr, alpha):
+    H = renyi_x(data, target, alpha)
+    freq = pd.DataFrame(data.groupby([attr, target])['__W__'].sum()).unstack().fillna(0)
+    N = data['__W__'].sum()
+    info = freq.apply(lambda row: req_info_r(row, N, alpha), axis=1)
+    return round(H - info.sum(), 3)
+
+
+def req_info_r(row, N, alpha):
+    n = row.sum()
+    p = row.values / n
+    p = p[nonzero(p)]
+    p = power(p, alpha).sum()
+    return round(((1 / (1-alpha)) * log(p)) * (n / N), 3)
+
+
+def renyi_x(data, target, alpha):
+    data = data.loc[data[target].notnull()]
+    freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
+    W = data['__W__'].sum()
+    p = power(freq / W, alpha).sum()
+    return round((1 / (1-alpha)) * log(p), 3)
+
+
+def renyiCont(data, target, attr, alpha):
+    data = data.loc[data[target].notnull()]
+    vals = unique(data[attr].sort_values().values[:-1])
+    if len(vals) <= 1:
+        return 0, None
+    thresholds = (vals[1:] - vals[0:-1]) / 2
+    thrshRenyi = {}
+    for v, dv in zip(vals, thresholds):
+        data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
+        d = renyi(data, target, '__thrsh__', alpha)
+        thrshRenyi[v + dv] = d
+    bestSplit = max(thrshRenyi, key=thrshRenyi.get)
+    d = thrshRenyi[bestSplit]
     data.drop(['__thrsh__'], axis=1, inplace=True)
     return d, bestSplit
 
