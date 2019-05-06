@@ -31,7 +31,8 @@ def splitInfo(data, target):
 def splitInfoCont(data, target, thrsh):
     data = data.loc[data[target].notnull()]
     thrsh_sort = data[target].apply(lambda x: x >= thrsh)
-    freq = thrsh_sort.value_counts().values
+    # freq = thrsh_sort.value_counts().values
+    freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
     miss = data.loc[data[target].isnull()].shape[0]
     if miss > 0:
         freq = append(freq, [miss], axis=0)
@@ -46,12 +47,41 @@ def req_bits(row, N):
     return -sum(vals * log2(vals)) * (n / N)
 
 
-def info_x(data, attr, target):
+def info_x(data, attr):
     data = data.loc[data[attr].notnull()]
-    freq = pd.crosstab(data[attr], data[target], normalize=False)
-    N = data.shape[0]
+    freq = pd.DataFrame(data.groupby([attr])['__W__'].sum()).unstack().fillna(0).values
+    W = data['__W__'].sum()
+    p = freq / W
+    return round(-sum(p * log2(p)), 3)
+
+def gainRatio(data,target,attr):
+    gain = entropy(data,target,attr)
+    spltInfo = splitInfo(data, attr)
+    return round(gain/spltInfo,3)
+
+def entropy(data,target,attr):
+    H = info_x(data, target)
+    freq = pd.DataFrame(data.groupby([attr, target])['__W__'].sum()).unstack().fillna(0)
+    N = data['__W__'].sum()
     info = freq.apply(lambda row: req_bits(row, N), axis=1)
-    return round(info.sum(), 3)
+    return round(H - info.sum(),3)
+
+def entropyCont(data,target,attr):
+    data = data.loc[data[target].notnull()]
+    vals = unique(data[attr].sort_values().values[:-1])
+    if len(vals) <= 1:
+        return 0, None
+    thresholds = (vals[1:] - vals[0:-1]) / 2
+    thrshShannon = {}
+    for v, dv in zip(vals, thresholds):
+        data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
+        H = entropy(data, target, '__thrsh__')
+        spltInfo = splitInfoCont(data, target, '__thrsh__')
+        thrshShannon[v + dv] = round(H/spltInfo)
+    bestSplit = max(thrshShannon, key=thrshShannon.get)
+    d = thrshShannon[bestSplit]
+    data.drop(['__thrsh__'], axis=1, inplace=True)
+    return d, bestSplit
 
 
 # endregion
@@ -179,14 +209,14 @@ def _splitEntropy_(data, attr, thrsh, W):
     return round(h / log(2), 3)
 
 
-def gainRatio(data, attr, infoGain, thrsh):
-    W = data['__W__'].sum()
-    h = _splitEntropy_(data, attr, thrsh, W)
-    if 0 <= h <= SMALL:
-        return 0
-    else:
-        h /= W
-    return round(infoGain / h, 3)
+# def gainRatio(data, attr, infoGain, thrsh):
+#     W = data['__W__'].sum()
+#     h = _splitEntropy_(data, attr, thrsh, W)
+#     if 0 <= h <= SMALL:
+#         return 0
+#     else:
+#         h /= W
+#     return round(infoGain / h, 3)
 
 
 # endregion

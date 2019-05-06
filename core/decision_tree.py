@@ -32,7 +32,7 @@ class DecisionTree():
             if data.empty:
                 raise BaseException('Empty data')
             self._setAttrributeProperties(data,numerical)
-            tree = Tree(data=data, target=target, attrProp=self.attrribute_properties)
+            tree = Tree(data=data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
             self.tree = tree._id3_(data,currId=0,parentId=-1)
 
     def C45(self, data, target, as_categorial=(), pruneLevel=0):

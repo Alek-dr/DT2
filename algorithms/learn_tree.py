@@ -28,7 +28,7 @@ class Tree(Graph):
         self.targetLbls = [lbl for lbl in attrProp[target]]
         self.minObj = 2
         if params is None:
-            self.params = {'criterion':'entropy'}
+            self.params = {'criterion': 'entropy'}
         else:
             self.params = params
 
@@ -115,52 +115,54 @@ class Tree(Graph):
             self.addNode(node, parentId)
             return self
         else:
-            gainRatio, attrThrsh = {}, {}
+            attrEst, attrThrsh = {}, {}
             for attr in data.columns:
                 if (attr != self.target) and (attr != '__W__'):
                     if self.attrributeTypes[attr] == 1:
                         # categorical attribute
                         if self.params['criterion'] == 'entropy':
-                            gainRatio[attr] = self._handleCategorial_(data, attr)
+                            # attrEst[attr] = self._handleCategorial_(data, attr)
+                            attrEst[attr] = gainRatio(data, self.target, attr)
                         elif self.params['criterion'] == 'Gini':
-                            gainRatio[attr] = gini(data, self.target, attr)
+                            attrEst[attr] = gini(data, self.target, attr)
                         elif self.params['criterion'] == 'D':
-                            gainRatio[attr] = D(data,self.target,attr)
+                            attrEst[attr] = D(data, self.target, attr)
                         elif self.params['criterion'] == 'Tsallis':
-                            gainRatio[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
+                            attrEst[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
                         elif self.params['criterion'] == 'Renyi':
-                            gainRatio[attr] = renyi(data, self.target, attr, alpha=self.params['alpha'])
+                            attrEst[attr] = renyi(data, self.target, attr, alpha=self.params['alpha'])
                     else:
                         # continous attribute
                         if self.params['criterion'] == 'entropy':
-                            gr, thrsh = self._handleNumerical_(data, attr)
-                            gainRatio[attr] = gr
+                            # gr, thrsh = self._handleNumerical_(data, attr)
+                            gr, thrsh = entropyCont(data, self.target, attr)
+                            attrEst[attr] = gr
                             attrThrsh[attr] = thrsh
                         elif self.params['criterion'] == 'Gini':
                             g, thrsh = giniCont(data, self.target, attr)
-                            gainRatio[attr] = g
+                            attrEst[attr] = g
                             attrThrsh[attr] = thrsh
                         elif self.params['criterion'] == 'D':
                             d, thrsh = D_cont(data, self.target, attr)
-                            gainRatio[attr] = d
+                            attrEst[attr] = d
                             attrThrsh[attr] = thrsh
                         elif self.params['criterion'] == 'Tsallis':
                             t, thrsh = tsallisCont(data, self.target, attr, self.params['alpha'])
-                            gainRatio[attr] = t
+                            attrEst[attr] = t
                             attrThrsh[attr] = thrsh
                         elif self.params['criterion'] == 'Renyi':
                             r, thrsh = renyiCont(data, self.target, attr, self.params['alpha'])
-                            gainRatio[attr] = r
+                            attrEst[attr] = r
                             attrThrsh[attr] = thrsh
 
-            best_attr = max(gainRatio, key=gainRatio.get)
+            best_attr = max(attrEst, key=attrEst.get)
 
             node.attr = best_attr
             node.type = 'inner'
             node.stat = self._getStat_(data)
 
             if node.id == 0:
-                if not self._usefullAttribute_(gainRatio):
+                if not self._usefullAttribute_(attrEst):
                     node.type = 'leaf'
                     node.attr = mostFreq
                     self.setRootNode(node)
@@ -168,7 +170,7 @@ class Tree(Graph):
                 else:
                     self.setRootNode(node)
             else:
-                if not self._usefullAttribute_(gainRatio):
+                if not self._usefullAttribute_(attrEst):
                     node.type = 'leaf'
                     node.attr = mostFreq
                     self.addNode(node, parentId=parentId)

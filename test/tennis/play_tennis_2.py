@@ -50,12 +50,12 @@ def test_2():
     dt.tree._pruneSameChild_()
 
 def test_3():
-    tennis = pd.read_csv('../../datasets/PlayTennis_2.csv')
+    tennis = pd.read_csv('../../datasets/PlayTennis_1.csv')
     tennis.drop("Day", axis=1, inplace=True)
 
     dt = DecisionTree()
     params = {
-        'criterion':'Gini',
+        'criterion':'entropy',
         'alpha':2
     }
     dt.learn(tennis,'Play',params=params)
@@ -68,6 +68,7 @@ def test_3():
 if __name__=='__main__':
     # train()
     test_3()
+
     # test_2()
     # alpha = 0.25
     # z = stats.norm.ppf(1 - alpha/2)

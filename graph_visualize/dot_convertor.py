@@ -45,3 +45,5 @@ def export2dot(name, tree, writeId=False, write=False):
                 output.close()
         else:
             return dot_graph
+
+# dot -Tpng test/zenit/zenitID3.dot -o test/zenit/zenit.png
