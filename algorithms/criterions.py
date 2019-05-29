@@ -77,7 +77,7 @@ def entropyCont(data,target,attr):
         data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
         H = entropy(data, target, '__thrsh__')
         spltInfo = splitInfoCont(data, target, '__thrsh__')
-        thrshShannon[v + dv] = round(H/spltInfo)
+        thrshShannon[v + dv] = round(H/spltInfo,3)
     bestSplit = max(thrshShannon, key=thrshShannon.get)
     d = thrshShannon[bestSplit]
     data.drop(['__thrsh__'], axis=1, inplace=True)

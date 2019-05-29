@@ -1,18 +1,23 @@
 from algorithms.learn_tree import Tree
 
 
-def make_node(node, writeId):
+def make_node(node, writeId, writeSamples):
+    label = ''
     if node.type == 'inner':
         if writeId:
-            label = '{}[label="{}\n{}", fillcolor="#ffffff"];\n'.format(node.id, node.id, node.attr)
-        else:
-            label = '{}[label="{}", fillcolor="#ffffff"];\n'.format(node.id, node.attr)
+            label += "{}\n".format(node.id)
+        label += "{}\n".format(node.attr)
+        if writeSamples:
+            label += 'Samples = {}\n'.format(round(node.stat.sum(),3))
+        dot_instance = '{}[label="{}", fillcolor="#ffffff"];\n'.format(node.id, label)
     else:
         if writeId:
-            label = '{}[label="{}\n{}", fillcolor="#ffffff"];\n'.format(node.id, node.id, node.attr)
-        else:
-            label = '{}[label="{}", fillcolor="#ffffff"];\n'.format(node.id, node.attr)
-    return label
+            label += "{}\n".format(node.id)
+        if writeSamples:
+            label += 'Samples = {}\n'.format(round(node.stat.sum(),3))
+        label += "{}\n".format(node.attr)
+        dot_instance = '{}[label="{}", fillcolor="#c6cbd3"];\n'.format(node.id, label)
+    return dot_instance
 
 
 def make_connection(connect):
@@ -22,7 +27,7 @@ def make_connection(connect):
     return conn
 
 
-def export2dot(name, tree, writeId=False, write=False):
+def export2dot(name, tree, writeId=False, writeSamples=True,  write=False):
     if isinstance(tree, Tree):
         dot_graph = 'digraph Tree { \n\tnode [shape=box, style="filled, rounded", color="black", fontname=helvetica] ; edge [fontname=helvetica];\n'
         graph_nodes, connections, ids = [], [], []
@@ -30,11 +35,11 @@ def export2dot(name, tree, writeId=False, write=False):
             nodes = tuple(connection.keys())[0]
             node = tree.getNode(nodes[0])
             if node.id not in ids:
-                dot_graph += make_node(node, writeId)
+                dot_graph += make_node(node, writeId, writeSamples)
                 ids.append(node.id)
             node = tree.getNode(nodes[1])
             if node.id not in ids:
-                dot_graph += make_node(node, writeId)
+                dot_graph += make_node(node, writeId, writeSamples)
                 ids.append(node.id)
             dot_graph += make_connection(connection)
         dot_graph += '}'

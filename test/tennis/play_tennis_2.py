@@ -50,12 +50,12 @@ def test_2():
     dt.tree._pruneSameChild_()
 
 def test_3():
-    tennis = pd.read_csv('../../datasets/PlayTennis_1.csv')
+    tennis = pd.read_csv('../../datasets/PlayTennis_2.csv')
     tennis.drop("Day", axis=1, inplace=True)
 
     dt = DecisionTree()
     params = {
-        'criterion':'entropy',
+        'criterion':'tsallis',
         'alpha':2
     }
     dt.learn(tennis,'Play',params=params)
@@ -64,6 +64,7 @@ def test_3():
     # export2dot(out_name, dt.tree, writeId=True, write=False)
     # dt.save(out_name + '.pkl')
 
+import numpy as np
 
 if __name__=='__main__':
     # train()
@@ -76,3 +77,12 @@ if __name__=='__main__':
     #
     # f = stats.binom.pmf(k=6,n=6,p=alpha)
     # print(f)
+
+    # a = 2/3
+    # b = 1/3
+    # a1 = a * np.log2(a)
+    # b1 = b * np.log2(b)
+    # print(a1+b1)
+
+    # print(0.42/0.971)
+
