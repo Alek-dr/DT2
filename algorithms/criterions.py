@@ -20,24 +20,25 @@ def info(data, target, attr):
 
 
 def splitInfo(data, target):
-    freq = data[target].value_counts().values
-    miss = data.loc[data[target].isnull()].shape[0]
-    if miss > 0:
-        freq = append(freq, [miss], axis=0)
-    p = freq / data.shape[0]
-    return round(-sum(p * log2(p)), 3)
-
-
-def splitInfoCont(data, target, thrsh):
-    data = data.loc[data[target].notnull()]
-    thrsh_sort = data[target].apply(lambda x: x >= thrsh)
-    # freq = thrsh_sort.value_counts().values
+    # freq = data[target].value_counts().values
     freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
     miss = data.loc[data[target].isnull()].shape[0]
     if miss > 0:
         freq = append(freq, [miss], axis=0)
     p = freq / data.shape[0]
     return round(-sum(p * log2(p)), 3)
+
+
+# def splitInfoCont(data, target):
+#     data = data.loc[data[target].notnull()]
+#     # thrsh_sort = data[target].apply(lambda x: x >= thrsh)
+#     # freq = thrsh_sort.value_counts().values
+#     freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
+#     miss = data.loc[data[target].isnull()].shape[0]
+#     if miss > 0:
+#         freq = append(freq, [miss], axis=0)
+#     p = freq / data.shape[0]
+#     return round(-sum(p * log2(p)), 3)
 
 
 def req_bits(row, N):
@@ -76,7 +77,7 @@ def entropyCont(data,target,attr):
     for v, dv in zip(vals, thresholds):
         data['__thrsh__'] = data[attr].apply(lambda x: x >= v + dv)
         H = entropy(data, target, '__thrsh__')
-        spltInfo = splitInfoCont(data, target, '__thrsh__')
+        spltInfo = splitInfo(data, '__thrsh__')
         thrshShannon[v + dv] = round(H/spltInfo,3)
     bestSplit = max(thrshShannon, key=thrshShannon.get)
     d = thrshShannon[bestSplit]

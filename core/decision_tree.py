@@ -1,10 +1,12 @@
 from algorithms.learn_tree import *
-from core.pruning import errorBasedPruning
+from core.pruning import errorBasedPruning, pruneMinSamples
 from pandas import DataFrame, Series
 from numpy import nan
 import pickle
 
 class DecisionTree():
+
+    criterions = ['entropy','Gini','D','Tsallis','Renyi']
 
     def __init__(self):
         self.tree = None
@@ -57,26 +59,46 @@ class DecisionTree():
             del self.tree.data
             del self.data
 
-    def learn(self, data, target, as_categorial=(), pruneLevel=0, params=None):
+    def learn(self, data, target, as_categorial=(), params=None):
         if isinstance(data,DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
-            if params['criterion'] == 'Tsallis' or params['criterion'] == 'Renyi':
-                if 'alpha' in params:
-                    if params['alpha'] == 1:
-                        raise Exception("alpha = 1 is unacceptable value for Tsallis and Renyi entropy")
+            if 'criterion' in params:
+                if params['criterion'] not in self.criterions:
+                    raise Exception("Unknown criterion {}".format(params['criterion']))
+                if params['criterion'] == 'Tsallis' or params['criterion'] == 'Renyi':
+                    if 'alpha' in params:
+                        if params['alpha'] == 1:
+                            raise Exception("alpha = 1 is unacceptable value for Tsallis and Renyi entropy")
+            else:
+                params['criterion'] = 'entropy'
             self._setAttrributeProperties(data,as_categorial)
             self.data = data.copy()
+            N = self.data.shape[0]
             tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types,params=params)
             self.tree = tree._c45_(self.data, currId=0, parentId=-1)
+            # Pruning
+            if 'pruneLevel' in params:
+                pruneLevel = params['pruneLevel']
+            else:
+                pruneLevel = 2
+            if 'minSamples' in params:
+                minSamples = float(params['minSamples'])
+                if minSamples < 1:
+                    # percent
+                    minSamples *= N
+            else:
+                minSamples = 2
             if pruneLevel == 1:
                 errorBasedPruning(self.tree)
             elif pruneLevel == 2:
                 errorBasedPruning(self.tree)
+                pruneMinSamples(self.tree,minSamples)
                 self.tree._pruneSameChild_()
             elif pruneLevel == 3:
                 self.tree._pruneSameChild_()
                 errorBasedPruning(self.tree)
+                pruneMinSamples(self.tree, minSamples)
                 wasPruned = self.tree._pruneSameChild_()
                 while wasPruned:
                     wasPruned = self.tree._pruneSameChild_()

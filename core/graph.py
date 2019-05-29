@@ -89,7 +89,7 @@ class Graph():
             self.nodes.remove(node)
         nodes[0].stat = res
 
-    def prune(self, parentId, childs):
+    def pruneAll(self, parentId, childs):
         for id in childs:
             edge = (parentId, id)
             self.edges.remove(edge)
@@ -98,3 +98,9 @@ class Graph():
         node = self.getNode(parentId)
         node.attr = node.stat.idxmax()
         node.type = 'leaf'
+
+    def prune(self, parentId, childId):
+        edge = (parentId, childId)
+        self.edges.remove(edge)
+        node = self.getNode(childId)
+        self.nodes.remove(node)

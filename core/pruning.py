@@ -23,6 +23,25 @@ def errorBasedPruning(tree, z=0.69):
             del errorRates
             if err < 0.51:
                 # prune
-                tree.prune(parent, childs)
+                tree.pruneAll(parent, childs)
                 tree._pruneConnect_(parent, childs)
                 tree._pruneBranchStat_(parent, childs)
+
+def pruneMinSamples(tree,minSamples):
+    groups = tree.groupLeafByParent()
+    for parent, childs in groups.items():
+        wasPrune = False
+        for chId in childs:
+            node = tree.getNode(chId)
+            w = node.stat.sum()
+            if w < minSamples:
+                tree.prune(parent, chId)
+                tree._pruneConnect_(parent, [chId])
+                tree._pruneBranchStat_(parent, [chId])
+                wasPrune = True
+        if wasPrune:
+            newChilds = tree.getChilds(parent)
+            if len(newChilds) <= 1:
+                tree.pruneAll(parent, newChilds)
+                tree._pruneConnect_(parent, newChilds)
+                tree._pruneBranchStat_(parent, newChilds)

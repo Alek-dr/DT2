@@ -373,7 +373,7 @@ class Tree(Graph):
                     # prune leafs
                     for eq in sameLbls:
                         chId = [childs[i] for i in eq]
-                        self.prune(parent, chId)
+                        self.pruneAll(parent, chId)
                         self._pruneConnect_(parent, chId)
                         self._pruneBranchStat_(parent, chId)
                         prune = True
