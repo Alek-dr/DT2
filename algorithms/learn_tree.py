@@ -315,6 +315,7 @@ class Tree(Graph):
             for conn in self.connectionProp:
                 if edge in conn:
                     self.connectionProp.remove(conn)
+                    break
 
     def _multipleConnect(self, parent, chId):
         dst = (parent, chId[0])
@@ -333,6 +334,44 @@ class Tree(Graph):
         for id in chId:
             edge = (parent, id)
             self.branchStat.drop(edge, axis=0, inplace=True)
+
+    def _changeChildConect_(self, parent, id1, id2):
+        """
+        :param parent: common parent id
+        :param id1: old id
+        :param id2: new id
+        """
+        oldEdge = (parent,id1)
+        newEdge = (parent,id2)
+        for conn in self.connectionProp:
+            if oldEdge in conn:
+                val = conn[oldEdge]
+                conn[newEdge] = val
+                del conn[oldEdge]
+                break
+
+    def _changeParentConect_(self, childs, oldParent, newParent):
+        """
+        :param parent: common parent id
+        :param id1: old id
+        :param id2: new id
+        """
+        for ch in childs:
+            oldEdge = (oldParent,ch)
+            newEdge = (newParent,ch)
+            for conn in self.connectionProp:
+                if oldEdge in conn:
+                    val = conn[oldEdge]
+                    conn[newEdge] = val
+                    del conn[oldEdge]
+                    break
+
+    def _changeStat_(self,oldIndex,newIndex):
+        bStat = self.branchStat.loc[[oldIndex]]
+        row = bStat
+        row.index = [newIndex]
+        self.branchStat = self.branchStat.append(row, ignore_index=False)
+        self.branchStat.drop(oldIndex, axis=0, inplace=True)
 
     def _mergeNodes_(self, parent, chId):
         allProp = []

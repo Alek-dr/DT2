@@ -2,11 +2,12 @@ from algorithms.learn_tree import *
 from core.pruning import errorBasedPruning, pruneMinSamples
 from pandas import DataFrame, Series
 from numpy import nan
+from numpy import random as rnd
 import pickle
 
-class DecisionTree():
 
-    criterions = ['entropy','Gini','D','Tsallis','Renyi']
+class DecisionTree():
+    criterions = ['entropy', 'Gini', 'D', 'Tsallis', 'Renyi']
 
     def __init__(self):
         self.tree = None
@@ -30,21 +31,22 @@ class DecisionTree():
                 raise Exception("Unknown attribute type")
 
     def ID3(self, data, target, numerical=()):
-        if isinstance(data,DataFrame):
+        if isinstance(data, DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
-            self._setAttrributeProperties(data,numerical)
+            self._setAttrributeProperties(data, numerical)
             tree = Tree(data=data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
-            self.tree = tree._id3_(data,currId=0,parentId=-1)
+            self.tree = tree._id3_(data, currId=0, parentId=-1)
 
     def C45(self, data, target, as_categorial=(), pruneLevel=0):
-        if isinstance(data,DataFrame):
+        if isinstance(data, DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
-            self._setAttrributeProperties(data,as_categorial)
+            self._setAttrributeProperties(data, as_categorial)
             self.data = data.copy()
-            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types)
-            self.tree = tree._c45_(self.data,currId=0,parentId=-1)
+            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties,
+                        attrTypes=self.attribute_types)
+            self.tree = tree._c45_(self.data, currId=0, parentId=-1)
             if pruneLevel == 1:
                 errorBasedPruning(self.tree)
             elif pruneLevel == 2:
@@ -60,7 +62,7 @@ class DecisionTree():
             del self.data
 
     def learn(self, data, target, as_categorial=(), params=None):
-        if isinstance(data,DataFrame):
+        if isinstance(data, DataFrame):
             if data.empty:
                 raise BaseException('Empty data')
             if 'criterion' in params:
@@ -72,10 +74,11 @@ class DecisionTree():
                             raise Exception("alpha = 1 is unacceptable value for Tsallis and Renyi entropy")
             else:
                 params['criterion'] = 'entropy'
-            self._setAttrributeProperties(data,as_categorial)
+            self._setAttrributeProperties(data, as_categorial)
             self.data = data.copy()
             N = self.data.shape[0]
-            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties, attrTypes=self.attribute_types,params=params)
+            tree = Tree(data=self.data, target=target, attrProp=self.attrribute_properties,
+                        attrTypes=self.attribute_types, params=params)
             self.tree = tree._c45_(self.data, currId=0, parentId=-1)
             # Pruning
             if 'pruneLevel' in params:
@@ -89,21 +92,90 @@ class DecisionTree():
                     minSamples *= N
             else:
                 minSamples = 2
+
             if pruneLevel == 1:
                 errorBasedPruning(self.tree)
             elif pruneLevel == 2:
                 errorBasedPruning(self.tree)
-                pruneMinSamples(self.tree,minSamples)
-                self.tree._pruneSameChild_()
+                pruneMinSamples(self.tree, minSamples)
             elif pruneLevel == 3:
-                self.tree._pruneSameChild_()
                 errorBasedPruning(self.tree)
                 pruneMinSamples(self.tree, minSamples)
-                wasPruned = self.tree._pruneSameChild_()
-                while wasPruned:
-                    wasPruned = self.tree._pruneSameChild_()
+                self.tree._pruneSameChild_()
+            elif pruneLevel == 4:
+                self.tree._pruneSameChild_()
+                errorBasedPruning(self.tree)
+                prue_1 = pruneMinSamples(self.tree, minSamples)
+                prue_2 = self.tree._pruneSameChild_()
+                while prue_1 or prue_2:
+                    prue_1 = pruneMinSamples(self.tree, minSamples)
+                    prue_2 = self.tree._pruneSameChild_()
             del self.tree.data
             del self.data
+
+    def grid_search(self, data, target, params, as_categorial=()):
+        if 'K' in params:
+            K = params['K']
+            del params['K']
+        else:
+            K = 3
+        if 'trainSize' in params:
+            ts = params['trainSize']
+            del params['trainSize']
+        else:
+            ts = 0.85
+        N = int(data.shape[0] * ts)
+        criterions, alphas, minSamples, pruneLevels = [], [], [], []
+        if 'criterion' not in params:
+            criterions = ['entropy']
+        else:
+            criterions = params['criterion']
+        if 'alpha' not in params:
+            alphas = [2]
+        else:
+            alphas = params['alpha']
+        if 'minSamples' not in params:
+            minSamples = [2]
+        else:
+            minSamples = params['minSamples']
+        if 'pruneLevel' not in params:
+            pruneLevels = [2]
+        else:
+            pruneLevels = params['pruneLevel']
+
+        accuracy__, params__ = [], []
+        ind = np.arange(0, data.shape[0], 1).astype(np.int)
+        for C in criterions:
+            for a in alphas:
+                for ms in minSamples:
+                    for pl in pruneLevels:
+                        averAcc = 0
+                        params_ = {
+                            'criterion': C,
+                            'alpha': a,
+                            'pruneLevel': pl,
+                            'minSamples': ms
+                        }
+                        # K-Fold validation
+                        for _ in range(K):
+                            try:
+                                trainInd = rnd.choice(ind, N, replace=False)
+                                testInd = [i for i in ind if i not in trainInd]
+                                train = data.loc[trainInd]
+                                test = data.loc[testInd]
+                                dt = DecisionTree()
+                                dt.learn(train, target, as_categorial, params=params_)
+                                Y = test[target].values
+                                res = dt.predict(test, vector=True)
+                                acc = sum(res == Y) / test.shape[0]
+                                averAcc += acc
+                            except Exception as ex:
+                                print(ex)
+                        averAcc /= K
+                        accuracy__.append(averAcc)
+                        params__.append(params_)
+        bestParamsInd = np.argmax(accuracy__)
+        return round(accuracy__[bestParamsInd], 3), params__[bestParamsInd]
 
     def predict(self, example, vector=True):
         if self.tree._initialized:
@@ -112,7 +184,7 @@ class DecisionTree():
                 rootNode = self.tree.getNode(0)
                 res = pd.DataFrame(columns=self.tree.targetLbls)
                 for _, ex in example.iterrows():
-                    y = self.tree._predict_(ex,rootNode)
+                    y = self.tree._predict_(ex, rootNode)
                     res = res.append(y, ignore_index=True)
             elif isinstance(example, Series):
                 rootNode = self.tree.getNode(0)
@@ -125,11 +197,11 @@ class DecisionTree():
 
     def save(self, name):
         with open(name, 'wb') as f:
-            pickle.dump(self,f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
             f.close()
 
     def load(self, name):
-        with open(name,'rb') as f:
+        with open(name, 'rb') as f:
             dt = pickle.load(f)
             f.close()
         self.tree = dt.tree

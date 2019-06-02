@@ -1,7 +1,7 @@
 from algorithms.learn_tree import Tree
 
 
-def make_node(node, writeId, writeSamples):
+def make_node(node, writeId, writeSamples, writeProb):
     label = ''
     if node.type == 'inner':
         if writeId:
@@ -15,6 +15,9 @@ def make_node(node, writeId, writeSamples):
             label += "{}\n".format(node.id)
         if writeSamples:
             label += 'Samples = {}\n'.format(round(node.stat.sum(),3))
+        if writeProb:
+            P = node.stat[node.attr] / node.stat.sum()
+            label += "P = {:.2f}\n".format(P)
         label += "{}\n".format(node.attr)
         dot_instance = '{}[label="{}", fillcolor="#c6cbd3"];\n'.format(node.id, label)
     return dot_instance
@@ -27,7 +30,7 @@ def make_connection(connect):
     return conn
 
 
-def export2dot(name, tree, writeId=False, writeSamples=True,  write=False):
+def export2dot(name, tree, writeId=False, writeSamples=True, writeProb=True, write=False):
     if isinstance(tree, Tree):
         dot_graph = 'digraph Tree { \n\tnode [shape=box, style="filled, rounded", color="black", fontname=helvetica] ; edge [fontname=helvetica];\n'
         graph_nodes, connections, ids = [], [], []
@@ -35,11 +38,11 @@ def export2dot(name, tree, writeId=False, writeSamples=True,  write=False):
             nodes = tuple(connection.keys())[0]
             node = tree.getNode(nodes[0])
             if node.id not in ids:
-                dot_graph += make_node(node, writeId, writeSamples)
+                dot_graph += make_node(node, writeId, writeSamples,writeProb)
                 ids.append(node.id)
             node = tree.getNode(nodes[1])
             if node.id not in ids:
-                dot_graph += make_node(node, writeId, writeSamples)
+                dot_graph += make_node(node, writeId, writeSamples,writeProb)
                 ids.append(node.id)
             dot_graph += make_connection(connection)
         dot_graph += '}'

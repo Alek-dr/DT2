@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 class Node():
 
     def __init__(self, id, nodeType='leaf'):
@@ -11,6 +12,7 @@ class Node():
     def nodeStat(self, stat):
         """param stat: this field can be anything that is statistic"""
         self.stat = stat
+
 
 class Graph():
 
@@ -54,13 +56,13 @@ class Graph():
                 if len(edge) == 2:
                     self.edges.append(tuple(edge))
 
-    def getParentId(self,id):
+    def getParentId(self, id):
         """
         :param id: int id of leaf node
         :return: parent node id
         """
         for edge in self.edges:
-            if edge[1]==id:
+            if edge[1] == id:
                 return edge[0]
 
     def groupLeafByParent(self):
@@ -75,19 +77,31 @@ class Graph():
         del leafInd, parents
         return group
 
-    def _makeOneNode_(self,parentId, nodesId):
+    def _makeOneNode_(self, parentId, nodesId):
         # merge to node 0
         nodes = [self.getNode(id) for id in nodesId]
         stats = [node.stat for node in nodes]
         res = pd.concat(stats, axis=1, sort=False)
         res['W'] = res.sum(axis=1)
-        res.drop(columns = [name for name in res.columns[:-1]], axis=1, inplace=True)
+        res.drop(columns=[name for name in res.columns[:-1]], axis=1, inplace=True)
         res.columns = ['Weight']
         for node in nodes[1:]:
             edge = (parentId, node.id)
             self.edges.remove(edge)
             self.nodes.remove(node)
         nodes[0].stat = res
+
+    def _replace_(self, id1, id2):
+        node1 = self.getNode(id1)
+        stat = node1.stat
+        node2 = self.getNode(id2)
+        node2.stat = stat
+        self.nodes.remove(node1)
+        parent = self.getParentId(id1)
+        edge = (parent, id1)
+        self.edges.remove(edge)
+        newEdge = (parent, id2)
+        self._addEdge_(newEdge)
 
     def pruneAll(self, parentId, childs):
         for id in childs:
