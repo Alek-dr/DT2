@@ -1,5 +1,5 @@
 from numpy import sqrt, square
-
+from collections import deque
 
 def error(N, f, z):
     z2 = square(z)
@@ -11,22 +11,24 @@ def error(N, f, z):
 def errorBasedPruning(tree, z=0.69):
     groups = tree.groupLeafByParent()
     for parent, childs in groups.items():
-        if len(childs) > 1:
-            errorRates = []
-            for chId in childs:
-                node = tree.getNode(chId)
-                maj = node.attr
-                N = node.stat.sum(axis=0)
-                f = node.stat.drop(maj, axis=0).sum(axis=0)
-                errorRates.append(error(N, f, z) / N)
-            errorRates = list(filter(lambda x: x == x, errorRates))
-            err = sum(errorRates)
-            del errorRates
-            if err < 0.51:
-                # prune
-                tree.pruneAll(parent, childs)
-                tree._pruneConnect_(parent, childs)
-                tree._pruneBranchStat_(parent, childs)
+        allChilds = tree.getChilds(parent)
+        if len(allChilds) == childs:
+            if len(childs) > 1:
+                errorRates = []
+                for chId in childs:
+                    node = tree.getNode(chId)
+                    maj = node.attr
+                    N = node.stat.sum(axis=0)
+                    f = node.stat.drop(maj, axis=0).sum(axis=0)
+                    errorRates.append(error(N, f, z) / N)
+                errorRates = list(filter(lambda x: x == x, errorRates))
+                err = sum(errorRates)
+                del errorRates
+                if err < 0.51:
+                    # prune
+                    tree.pruneAll(parent, childs)
+                    tree._pruneConnect_(parent, childs)
+                    tree._pruneBranchStat_(parent, childs)
 
 
 def pruneMinSamples(tree, minSamples):
@@ -78,3 +80,46 @@ def pruneMinSamples(tree, minSamples):
                     tree._pruneConnect_(parent, newChilds)
                     tree._pruneBranchStat_(parent, newChilds)
         return pruned
+
+
+def pruneMaxDepth(tree, maxDepth):
+    currDepth = 0
+    keepVert, last = [0], []
+    vert = deque()
+    vert.append(0)
+    # Find vertexes
+    while len(vert) > 0:
+        v = vert.popleft()
+        childs = tree.getChilds(v)
+        keepVert += childs
+        currDepth += 1
+        for ch in childs:
+            vert.append(ch)
+        if currDepth == maxDepth:
+            last = childs
+            break
+    # prune nodes
+    to_del = []
+    for node in tree.nodes:
+        if node.id not in keepVert:
+            to_del.append(node.id)
+            childs = tree.getChilds(node.id)
+            tree._pruneConnect_(node.id, childs)
+            tree._pruneBranchStat_(node.id, childs)
+            for ch in childs:
+                edge = (node.id,ch)
+                tree.edges.remove(edge)
+                tree.nodes.remove(tree.getNode(ch))
+            parent = tree.getParentId(node.id)
+            tree._pruneConnect_(parent,[node.id])
+            tree._pruneBranchStat_(parent, [node.id])
+            edge = (parent,node.id)
+            tree.edges.remove(edge)
+    for id in to_del:
+        node = tree.getNode(id)
+        tree.nodes.remove(node)
+    # Make nodes leafs
+    for id in last:
+        node = tree.getNode(id)
+        node.attr = node.stat.idxmax()
+        node.type = 'leaf'

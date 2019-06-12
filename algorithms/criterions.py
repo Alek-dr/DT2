@@ -20,25 +20,12 @@ def info(data, target, attr):
 
 
 def splitInfo(data, target):
-    # freq = data[target].value_counts().values
     freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
     miss = data.loc[data[target].isnull()].shape[0]
     if miss > 0:
         freq = append(freq, [miss], axis=0)
     p = freq / data.shape[0]
     return round(-sum(p * log2(p)), 3)
-
-
-# def splitInfoCont(data, target):
-#     data = data.loc[data[target].notnull()]
-#     # thrsh_sort = data[target].apply(lambda x: x >= thrsh)
-#     # freq = thrsh_sort.value_counts().values
-#     freq = pd.DataFrame(data.groupby([target])['__W__'].sum()).unstack().fillna(0).values
-#     miss = data.loc[data[target].isnull()].shape[0]
-#     if miss > 0:
-#         freq = append(freq, [miss], axis=0)
-#     p = freq / data.shape[0]
-#     return round(-sum(p * log2(p)), 3)
 
 
 def req_bits(row, N):
@@ -208,17 +195,6 @@ def _splitEntropy_(data, attr, thrsh, W):
         h -= unknown * log(unknown)
     h += W * log(W)
     return round(h / log(2), 3)
-
-
-# def gainRatio(data, attr, infoGain, thrsh):
-#     W = data['__W__'].sum()
-#     h = _splitEntropy_(data, attr, thrsh, W)
-#     if 0 <= h <= SMALL:
-#         return 0
-#     else:
-#         h /= W
-#     return round(infoGain / h, 3)
-
 
 # endregion
 

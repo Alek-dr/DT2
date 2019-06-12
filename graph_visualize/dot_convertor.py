@@ -51,6 +51,7 @@ def export2dot(name, tree, writeId=False, writeSamples=True, writeProb=True, wri
             with open(name + ".dot", "w") as output:
                 output.write(dot_graph)
                 output.close()
+            return None
         else:
             return dot_graph
 

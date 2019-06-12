@@ -25,4 +25,5 @@ def train_test_split(data, train=0.8, seed=0):
     I = int(N*train)
     trainInd = indexes[0:I]
     testInd = indexes[I:]
+    # return trainInd, testInd
     return data.iloc[trainInd], data.iloc[testInd]

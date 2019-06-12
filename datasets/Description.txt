@@ -1,3 +1,0 @@
-PlayTennis_0 - Induction of decision trees, p.86
-PlayTennis_1 - C4.5 Programs for machine learning, p.18
-PlayTennis_2 - C4.5 Programs for machine learning, p.30 (missing value)

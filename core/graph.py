@@ -10,7 +10,6 @@ class Node():
         self.attr = None
 
     def nodeStat(self, stat):
-        """param stat: this field can be anything that is statistic"""
         self.stat = stat
 
 
@@ -89,7 +88,9 @@ class Graph():
             edge = (parentId, node.id)
             self.edges.remove(edge)
             self.nodes.remove(node)
-        nodes[0].stat = res
+        del nodes
+        node = self.getNode(nodesId[0])
+        node.stat = res.squeeze()
 
     def _replace_(self, id1, id2):
         node1 = self.getNode(id1)

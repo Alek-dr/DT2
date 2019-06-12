@@ -1,11 +1,10 @@
 from core.graph import Graph, Node
-from core.pruning import errorBasedPruning
 from algorithms.criterions import *
-from numpy import round, unique
+from numpy import round
 from utils.help_functions import groupSameElements
 from operator import itemgetter
+from multiprocessing import Process, Manager
 import numpy as np
-
 
 def _getPartition_(data, attr):
     num = data.loc[data[attr].notnull()]['__W__'].sum()
@@ -31,6 +30,12 @@ class Tree(Graph):
             self.params = {'criterion': 'entropy'}
         else:
             self.params = params
+            if 'minSamples' in params:
+                ms = float(params['minSamples'])
+                if ms < 1:
+                    self.minObj = round(data.shape[0] * ms, 3)
+                else:
+                    self.minObj = ms
 
     def _id3_(self, data, currId, parentId):
 
@@ -55,12 +60,13 @@ class Tree(Graph):
             node.attr = most_freq
             self.addNode(node, parentId)
         else:
-            initial_entropy = info(data, self.target, self.target)
+            # initial_entropy = info(data, self.target, self.target)
             gain = {}
             for attr in data.columns:
-                if attr != self.target:
-                    I = info_x(data, attr, self.target)
-                    gain[attr] = round(initial_entropy - I, 3)
+                if (attr != self.target) and (attr != '__W__'):
+                    I = entropy(data, self.target, attr)
+                    gain[attr] = round(I, 3)
+                    # gain[attr] = round(initial_entropy - I, 3)
 
             best_attr = max(gain, key=gain.get)
 
@@ -115,46 +121,58 @@ class Tree(Graph):
             self.addNode(node, parentId)
             return self
         else:
-            attrEst, attrThrsh = {}, {}
+
+            def _attributeFinding_(attr):
+                if self.attrributeTypes[attr] == 1:
+                    # categorical attribute
+                    if self.params['criterion'] == 'entropy':
+                        # attrEst[attr] = self._handleCategorial_(data, attr)
+                        attrEst[attr] = gainRatio(data, self.target, attr)
+                    elif self.params['criterion'] == 'Gini':
+                        attrEst[attr] = gini(data, self.target, attr)
+                    elif self.params['criterion'] == 'D':
+                        attrEst[attr] = D(data, self.target, attr)
+                    elif self.params['criterion'] == 'Tsallis':
+                        attrEst[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
+                    elif self.params['criterion'] == 'Renyi':
+                        attrEst[attr] = renyi(data, self.target, attr, alpha=self.params['alpha'])
+                else:
+                    # continous attribute
+                    if self.params['criterion'] == 'entropy':
+                        # gr, thrsh = self._handleNumerical_(data, attr)
+                        gr, thrsh = entropyCont(data, self.target, attr)
+                        attrEst[attr] = gr
+                        attrThrsh[attr] = thrsh
+                    elif self.params['criterion'] == 'Gini':
+                        g, thrsh = giniCont(data, self.target, attr)
+                        attrEst[attr] = g
+                        attrThrsh[attr] = thrsh
+                    elif self.params['criterion'] == 'D':
+                        d, thrsh = D_cont(data, self.target, attr)
+                        attrEst[attr] = d
+                        attrThrsh[attr] = thrsh
+                    elif self.params['criterion'] == 'Tsallis':
+                        t, thrsh = tsallisCont(data, self.target, attr, self.params['alpha'])
+                        attrEst[attr] = t
+                        attrThrsh[attr] = thrsh
+                    elif self.params['criterion'] == 'Renyi':
+                        r, thrsh = renyiCont(data, self.target, attr, self.params['alpha'])
+                        attrEst[attr] = r
+                        attrThrsh[attr] = thrsh
+
+            manager = Manager()
+            attrEst, attrThrsh = manager.dict(), manager.dict()
+            jobs = []
             for attr in data.columns:
                 if (attr != self.target) and (attr != '__W__'):
-                    if self.attrributeTypes[attr] == 1:
-                        # categorical attribute
-                        if self.params['criterion'] == 'entropy':
-                            # attrEst[attr] = self._handleCategorial_(data, attr)
-                            attrEst[attr] = gainRatio(data, self.target, attr)
-                        elif self.params['criterion'] == 'Gini':
-                            attrEst[attr] = gini(data, self.target, attr)
-                        elif self.params['criterion'] == 'D':
-                            attrEst[attr] = D(data, self.target, attr)
-                        elif self.params['criterion'] == 'Tsallis':
-                            attrEst[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
-                        elif self.params['criterion'] == 'Renyi':
-                            attrEst[attr] = renyi(data, self.target, attr, alpha=self.params['alpha'])
-                    else:
-                        # continous attribute
-                        if self.params['criterion'] == 'entropy':
-                            # gr, thrsh = self._handleNumerical_(data, attr)
-                            gr, thrsh = entropyCont(data, self.target, attr)
-                            attrEst[attr] = gr
-                            attrThrsh[attr] = thrsh
-                        elif self.params['criterion'] == 'Gini':
-                            g, thrsh = giniCont(data, self.target, attr)
-                            attrEst[attr] = g
-                            attrThrsh[attr] = thrsh
-                        elif self.params['criterion'] == 'D':
-                            d, thrsh = D_cont(data, self.target, attr)
-                            attrEst[attr] = d
-                            attrThrsh[attr] = thrsh
-                        elif self.params['criterion'] == 'Tsallis':
-                            t, thrsh = tsallisCont(data, self.target, attr, self.params['alpha'])
-                            attrEst[attr] = t
-                            attrThrsh[attr] = thrsh
-                        elif self.params['criterion'] == 'Renyi':
-                            r, thrsh = renyiCont(data, self.target, attr, self.params['alpha'])
-                            attrEst[attr] = r
-                            attrThrsh[attr] = thrsh
+                    # proc = Process(target=self._attributeFinding_, args=(attr, attrEst, attrThrsh, data,))
+                    proc = Process(target=_attributeFinding_, args=(attr,))
+                    jobs.append(proc)
+                    proc.start()
+            for proc in jobs:
+                proc.join()
 
+            attrEst, attrThrsh = dict(attrEst), dict(attrThrsh)
             best_attr = max(attrEst, key=attrEst.get)
 
             node.attr = best_attr
@@ -213,60 +231,43 @@ class Tree(Graph):
                     self._c45_(sub, currId=nextId, parentId=node.id)
         return self
 
-    def _handleCategorial_(self, data, attr):
-        initial_entropy = info(data, self.target, attr=attr)
-        F = _getPartition_(data, attr)
-        I = info_x(data, attr, self.target)
-        gain = round(F * (initial_entropy - I), 3)
-        splInfo = splitInfo(data, attr)
-        return round(gain / splInfo, 3)
-
-    def _handleNumerical_(self, data, attr):
-        if data.empty:
-            return 0, None
-        minSplit = 0.1 * (data['__W__'].sum() / self.nClasses)
-        if minSplit <= self.minObj:
-            minSplit = self.minObj
-        elif minSplit >= 25:
-            minSplit = 25
-
-        W_attr = data.loc[data[attr].notnull()]['__W__'].sum()
-        if W_attr <= 2 * minSplit:
-            return 0, None
-
-        startEntr = distrEntropy(data, attr, self.target)
-        vals = unique(data[attr].sort_values().values[:-1])
-        if len(vals) <= 1:
-            return 0, None
-        thresholds = (vals[1:] - vals[0:-1]) / 2
-        n, infoGain = 0, 0
-        bestSplit = vals[0] + thresholds[0]
-        W = data['__W__'].sum()
-        for v, dv in zip(vals, thresholds):
-            leftSubs = data.loc[data[attr] <= v + dv]
-            rightSubs = data.loc[data[attr] > v + dv]
-            if (leftSubs.shape[0] >= minSplit) and (rightSubs.shape[0] >= minSplit):
-                n += 1
-                newEntropy = distrEntropy(leftSubs, attr, self.target) + distrEntropy(rightSubs, attr, self.target)
-                known = W - W_attr
-                rate = known / W
-                num = (startEntr - newEntropy) * (1 - rate)
-                if 0 <= num <= SMALL:
-                    currInfoGain = 0
-                else:
-                    currInfoGain = num / W_attr
-                if currInfoGain >= infoGain:
-                    infoGain = currInfoGain
-                    bestSplit = v + dv
-        # there no usefull split
-        if n == 0:
-            return 0, None
-        infoGain -= log2(n) / W_attr
-        if 0 >= infoGain <= SMALL:
-            return 0, None
+    def _attributeFinding_(self, attr, attrEst, attrThrsh, data):
+        if self.attrributeTypes[attr] == 1:
+            # categorical attribute
+            if self.params['criterion'] == 'entropy':
+                # attrEst[attr] = self._handleCategorial_(data, attr)
+                attrEst[attr] = gainRatio(data, self.target, attr)
+            elif self.params['criterion'] == 'Gini':
+                attrEst[attr] = gini(data, self.target, attr)
+            elif self.params['criterion'] == 'D':
+                attrEst[attr] = D(data, self.target, attr)
+            elif self.params['criterion'] == 'Tsallis':
+                attrEst[attr] = tsallis(data, self.target, attr, alpha=self.params['alpha'])
+            elif self.params['criterion'] == 'Renyi':
+                attrEst[attr] = renyi(data, self.target, attr, alpha=self.params['alpha'])
         else:
-            gr = gainRatio(data, attr, infoGain, bestSplit)
-            return gr, bestSplit
+            # continous attribute
+            if self.params['criterion'] == 'entropy':
+                # gr, thrsh = self._handleNumerical_(data, attr)
+                gr, thrsh = entropyCont(data, self.target, attr)
+                attrEst[attr] = gr
+                attrThrsh[attr] = thrsh
+            elif self.params['criterion'] == 'Gini':
+                g, thrsh = giniCont(data, self.target, attr)
+                attrEst[attr] = g
+                attrThrsh[attr] = thrsh
+            elif self.params['criterion'] == 'D':
+                d, thrsh = D_cont(data, self.target, attr)
+                attrEst[attr] = d
+                attrThrsh[attr] = thrsh
+            elif self.params['criterion'] == 'Tsallis':
+                t, thrsh = tsallisCont(data, self.target, attr, self.params['alpha'])
+                attrEst[attr] = t
+                attrThrsh[attr] = thrsh
+            elif self.params['criterion'] == 'Renyi':
+                r, thrsh = renyiCont(data, self.target, attr, self.params['alpha'])
+                attrEst[attr] = r
+                attrThrsh[attr] = thrsh
 
     def _enoughInstances_(self, data):
         W = data['__W__'].sum()
@@ -341,8 +342,8 @@ class Tree(Graph):
         :param id1: old id
         :param id2: new id
         """
-        oldEdge = (parent,id1)
-        newEdge = (parent,id2)
+        oldEdge = (parent, id1)
+        newEdge = (parent, id2)
         for conn in self.connectionProp:
             if oldEdge in conn:
                 val = conn[oldEdge]
@@ -357,8 +358,8 @@ class Tree(Graph):
         :param id2: new id
         """
         for ch in childs:
-            oldEdge = (oldParent,ch)
-            newEdge = (newParent,ch)
+            oldEdge = (oldParent, ch)
+            newEdge = (newParent, ch)
             for conn in self.connectionProp:
                 if oldEdge in conn:
                     val = conn[oldEdge]
@@ -366,7 +367,7 @@ class Tree(Graph):
                     del conn[oldEdge]
                     break
 
-    def _changeStat_(self,oldIndex,newIndex):
+    def _changeStat_(self, oldIndex, newIndex):
         bStat = self.branchStat.loc[[oldIndex]]
         row = bStat
         row.index = [newIndex]
@@ -405,7 +406,6 @@ class Tree(Graph):
                             ind_leafs = itemgetter(*leafs)(ind_leafs)
                             self._makeOneNode_(parent, ind_leafs)
                             self._multipleConnect(parent, ind_leafs)
-                            # self._pruneConnect_(parent, ind_leafs[1:])
                             self._mergeBranchStat_(parent, ind_leafs)
                             prune = True
                 else:
