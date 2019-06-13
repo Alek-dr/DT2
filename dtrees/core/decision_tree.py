@@ -1,5 +1,5 @@
-from algorithms.learn_tree import *
-from core.pruning import *
+from dtrees.algorithms.learn_tree import *
+from dtrees.core.pruning import *
 from pandas import DataFrame, Series
 from numpy import nan
 from numpy import random as rnd

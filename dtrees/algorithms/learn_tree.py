@@ -1,7 +1,7 @@
-from core.graph import Graph, Node
-from algorithms.criterions import *
+from dtrees.core.graph import Graph, Node
+from dtrees.algorithms.criterions import *
 from numpy import round
-from utils.help_functions import groupSameElements
+from dtrees.utils.help_functions import groupSameElements
 from operator import itemgetter
 from multiprocessing import Process, Manager
 import numpy as np

@@ -1,4 +1,4 @@
-from algorithms.learn_tree import Tree
+from dtrees.algorithms.learn_tree import Tree
 
 
 def make_node(node, writeId, writeSamples, writeProb):

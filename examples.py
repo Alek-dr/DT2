@@ -1,8 +1,9 @@
 import pandas as pd
-from core.decision_tree import DecisionTree
-from graph_visualize.dot_convertor import export2dot
+from dtrees.core.decision_tree import DecisionTree
+from dtrees.graph_visualize.dot_convertor import export2dot
 
 out_name = 'tennis'
+
 
 def test_1():
     """
@@ -14,7 +15,8 @@ def test_1():
     dt = DecisionTree()
     dt.C45(data=tennis, target='Play')
     export2dot(out_name, dt.tree, writeId=True, write=True)
-    dt.save(out_name+'.pkl')
+    dt.save(out_name + '.pkl')
+
 
 def test_2():
     """
@@ -26,6 +28,7 @@ def test_2():
     tennis.drop("Day", axis=1, inplace=True)
     res = dt.predict(tennis, vector=False)
     print(res)
+
 
 def test_3():
     """
@@ -41,6 +44,7 @@ def test_3():
     res = dt.predict(example, vector=False)
     print(res)
 
+
 def test_4():
     """
     Learn model with params
@@ -50,12 +54,13 @@ def test_4():
 
     dt = DecisionTree()
     params = {
-        'criterion':'entropy',
-        'alpha':4,
-        'pruneLevel' : 2,
+        'criterion': 'entropy',
+        'alpha': 4,
+        'pruneLevel': 2,
         'minSamples': 0.1
     }
-    dt.learn(tennis,'Play',params=params)
+    dt.learn(tennis, 'Play', params=params)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     test_1()
